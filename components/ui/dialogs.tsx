@@ -5,8 +5,10 @@ import { Button, Field, Input, Notice, Textarea, cx } from './primitives';
 import { messageOf } from '../../lib/client/api';
 
 /**
- * A modal dialog. Escape closes it, focus moves inside on open and returns to
- * the trigger on close, and the page behind it does not scroll.
+ * A dialog. On a phone it rises from the bottom as a sheet, within thumb reach and
+ * above the home indicator. On a desktop it is a centred card. Escape closes it,
+ * focus moves in on open and returns to the trigger on close, and the page behind
+ * does not scroll.
  */
 export function Modal({
   open,
@@ -14,12 +16,18 @@ export function Modal({
   title,
   children,
   wide = false,
+  full = false,
+  focusField = true,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   wide?: boolean;
+  /** A sheet that takes the whole height on a phone, for long lists such as the navigator. */
+  full?: boolean;
+  /** Move focus into the first field on open. Off for menus, so a phone does not open its keyboard. */
+  focusField?: boolean;
 }) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
@@ -36,8 +44,8 @@ export function Modal({
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    const first = panel.current?.querySelector<HTMLElement>('input, select, textarea, button:not([data-close])');
-    (first ?? panel.current)?.focus();
+    const first = focusField ? panel.current?.querySelector<HTMLElement>('input, select, textarea, button:not([data-close])') : null;
+    (first ?? panel.current)?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeRef.current();
@@ -47,14 +55,17 @@ export function Modal({
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = previous;
-      if (opener.current instanceof HTMLElement) opener.current.focus();
+      if (opener.current instanceof HTMLElement) opener.current.focus({ preventScroll: true });
     };
-  }, [open]);
+  }, [open, focusField]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px] md:items-center md:p-6"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div
         ref={panel}
         role="dialog"
@@ -62,19 +73,29 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cx(
-          'flex max-h-[92vh] w-full flex-col rounded-t-lg border border-line bg-surface shadow-2xl sm:rounded-lg',
-          wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'
+          'safe-bottom flex w-full flex-col bg-surface shadow-sheet outline-none',
+          'max-h-[92dvh] rounded-t-[28px] md:max-h-[88vh] md:rounded-3xl',
+          full ? 'h-[92dvh] md:h-auto' : '',
+          wide ? 'md:max-w-3xl' : 'md:max-w-lg',
+          'w-full'
         )}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-3">
-          <h2 id={titleId} className="text-base font-semibold text-ink">
+        <div aria-hidden className="mx-auto mt-2.5 h-1.5 w-11 shrink-0 rounded-full bg-line md:hidden" />
+        <header className="flex items-start justify-between gap-3 px-5 pb-3 pt-3 md:pt-5">
+          <h2 id={titleId} className="min-w-0 text-lg font-semibold tracking-tight text-ink">
             {title}
           </h2>
-          <button data-close type="button" onClick={onClose} className="rounded px-2 py-1 text-sm text-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber" aria-label="Close">
-            ✕
+          <button
+            data-close
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-raised text-ink hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text"
+          >
+            <span aria-hidden className="text-lg leading-none">✕</span>
           </button>
         </header>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
+        <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6', full && 'pb-8')}>{children}</div>
       </div>
     </div>
   );
@@ -82,8 +103,8 @@ export function Modal({
 
 /**
  * Every destructive or security-relevant action goes through here. The operator
- * must type the exact name of the thing being changed, so a click on the wrong
- * row, or a reflex Enter, cannot make the change.
+ * must type the exact name of the thing being changed, so a tap on the wrong row,
+ * or a reflexive Enter, cannot make the change.
  */
 export function ConfirmDialog({
   open,
@@ -142,24 +163,22 @@ export function ConfirmDialog({
 
   return (
     <Modal open={open} onClose={busy ? () => undefined : onClose} title={title}>
-      <div className="space-y-4">
-        <div className="text-sm text-mute">{body}</div>
+      <div className="space-y-5">
+        <div className="text-[15px] leading-relaxed text-mute">{body}</div>
 
         {reason && (
-          <Field label={reason.label} hint={`At least ${reason.min} characters. Stored with the audit entry.`}>
+          <Field label={reason.label} hint={`At least ${reason.min} characters. It is stored with the audit entry.`}>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
           </Field>
         )}
 
         {requireText && (
-          <label className="block">
-            <span className="mb-1 block text-xs text-mute">
-              Type <span className="font-mono text-ink">{requireText}</span> to confirm
-            </span>
+          <Field label={`Type ${requireText} to confirm`}>
             <Input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               autoComplete="off"
+              autoCapitalize="none"
               spellCheck={false}
               aria-invalid={typed.length > 0 && !typedOk}
               onKeyDown={(e) => {
@@ -169,16 +188,16 @@ export function ConfirmDialog({
                 }
               }}
             />
-          </label>
+          </Field>
         )}
 
         {error && <Notice tone="bad">{error}</Notice>}
 
-        <div className="flex flex-wrap justify-end gap-2 pt-1">
-          <Button onClick={onClose} disabled={busy} data-close>
+        <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2 md:flex md:justify-end">
+          <Button onClick={onClose} disabled={busy} data-close className="w-full md:w-auto">
             Cancel
           </Button>
-          <Button variant={danger ? 'danger' : 'primary'} onClick={() => void run()} disabled={!ready || busy}>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={() => void run()} disabled={!ready || busy} className="w-full md:w-auto">
             {busy ? 'Working…' : confirmLabel}
           </Button>
         </div>
@@ -189,8 +208,8 @@ export function ConfirmDialog({
 
 /**
  * Shows a secret exactly once: a printer key or a temporary password. The value
- * is kept only in this dialog's state. Closing it clears the value, and it cannot
- * be closed until the operator confirms they have saved it.
+ * is kept only in this dialog's state. Closing clears it, and it cannot be closed
+ * until the operator confirms they have saved it.
  */
 export function SecretDialog({
   open,
@@ -229,36 +248,27 @@ export function SecretDialog({
 
   return (
     <Modal open={open} onClose={() => saved && onClose()} title={title}>
-      <div className="space-y-4">
+      <div className="space-y-5">
         <Notice tone="warn">{note}</Notice>
 
         <div>
-          <div className="mb-1 text-xs uppercase tracking-wider text-mute">{label}</div>
-          <div className="flex items-stretch gap-2">
-            <code className="min-w-0 flex-1 select-all break-all rounded border border-line bg-bg px-3 py-2.5 font-mono text-sm text-ink">
-              {value ?? ''}
-            </code>
-            <Button onClick={() => void copy()} aria-label="Copy to clipboard">
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
-          </div>
-        </div>
-
-        <label className="flex items-start gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 accent-amber"
-            checked={saved}
-            onChange={(e) => setSaved(e.target.checked)}
-          />
-          <span>I have saved this value somewhere safe. It cannot be shown again.</span>
-        </label>
-
-        <div className="flex justify-end">
-          <Button variant="primary" disabled={!saved} onClick={onClose}>
-            Done
+          <div className="mb-2 text-sm font-medium text-ink">{label}</div>
+          <code className="block select-all break-all rounded-2xl border border-line bg-bg px-4 py-4 font-mono text-[15px] leading-relaxed text-ink">
+            {value ?? ''}
+          </code>
+          <Button onClick={() => void copy()} aria-label="Copy to clipboard" className="mt-3 w-full">
+            {copied ? 'Copied' : 'Copy'}
           </Button>
         </div>
+
+        <label className="flex min-h-[44px] items-start gap-3 text-[15px] text-ink">
+          <input type="checkbox" className="mt-1 h-5 w-5 accent-brand" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
+          <span>I have saved this somewhere safe. It cannot be shown again.</span>
+        </label>
+
+        <Button variant="primary" disabled={!saved} onClick={onClose} className="w-full">
+          Done
+        </Button>
       </div>
     </Modal>
   );

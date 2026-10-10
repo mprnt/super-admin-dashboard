@@ -135,13 +135,13 @@ function CreateQrPointDialog({ orgId, onClose, onDone }: { orgId: string; onClos
         <Field label="Location">
           <Input value={location} onChange={(e) => setLocation(e.target.value)} required maxLength={255} />
         </Field>
-        <fieldset className="grid gap-3 rounded border border-line p-3 sm:grid-cols-3">
+        <fieldset className="grid gap-3 rounded-2xl border border-line p-3 sm:grid-cols-3">
           <legend className="px-1 text-xs text-mute">Starting capabilities</legend>
           <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-amber" checked={color} onChange={(e) => setColor(e.target.checked)} /> Colour
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={color} onChange={(e) => setColor(e.target.checked)} /> Colour
           </label>
           <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-amber" checked={duplex} onChange={(e) => setDuplex(e.target.checked)} /> Double-sided
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={duplex} onChange={(e) => setDuplex(e.target.checked)} /> Double-sided
           </label>
           <Field label="Paper sizes">
             <Input value={paperSizes} onChange={(e) => setPaperSizes(e.target.value)} className="font-mono" />
@@ -681,17 +681,17 @@ function EnrollPrinterDialog({
           </Field>
           <div className="flex flex-col gap-2 pt-6 text-sm text-ink">
             <label className="flex items-center gap-2">
-              <input type="checkbox" className="h-4 w-4 accent-amber" checked={color} onChange={(e) => setColor(e.target.checked)} /> Supports colour
+              <input type="checkbox" className="h-4 w-4 accent-brand" checked={color} onChange={(e) => setColor(e.target.checked)} /> Supports colour
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" className="h-4 w-4 accent-amber" checked={duplex} onChange={(e) => setDuplex(e.target.checked)} /> Double-sided
+              <input type="checkbox" className="h-4 w-4 accent-brand" checked={duplex} onChange={(e) => setDuplex(e.target.checked)} /> Double-sided
             </label>
           </div>
         </div>
-        <fieldset className="rounded border border-line p-3">
+        <fieldset className="rounded-2xl border border-line p-3">
           <legend className="px-1 text-xs text-mute">MPrnt station</legend>
           <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-amber" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
             This printer is in an MPrnt station
           </label>
           {isStation && (
@@ -938,7 +938,7 @@ function EditPrinterDialog({ printer, onClose, onSaved }: { printer: Printer; on
           <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" className="h-4 w-4 accent-amber" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-brand" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
           This printer is in an MPrnt station
         </label>
         {isStation && (

@@ -9,6 +9,7 @@ const NOTICES: Record<string, string> = {
   expired: 'Your session has ended. Sign in again.',
   idle: 'You were signed out after 20 minutes without activity.',
   platform: 'That account does not have platform access.',
+  changed: 'Password changed. Sign in with the new one.',
 };
 
 export function LoginForm() {
@@ -52,8 +53,8 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4" noValidate>
-      <h2 className="text-sm font-semibold text-ink">Sign in</h2>
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      <h2 className="text-xl font-semibold tracking-tight text-ink">Sign in</h2>
 
       {notice && <Notice tone="info">{notice}</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
@@ -62,8 +63,10 @@ export function LoginForm() {
         <Input
           type="email"
           name="email"
+          inputMode="email"
           autoComplete="username"
           autoCapitalize="none"
+          autoCorrect="off"
           spellCheck={false}
           required
           value={email}
@@ -72,14 +75,7 @@ export function LoginForm() {
       </Field>
 
       <Field label="Password">
-        <Input
-          type="password"
-          name="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <Input type="password" name="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
       </Field>
 
       <Button variant="primary" type="submit" disabled={busy || !email || !password} className="w-full">

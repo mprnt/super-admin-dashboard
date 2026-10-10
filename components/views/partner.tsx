@@ -184,7 +184,7 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
             aria-label="Period"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="rounded border border-line bg-bg px-2.5 py-1.5 text-sm text-ink focus:border-amber focus:outline-none"
+            className="rounded-2xl border border-line bg-bg px-2.5 py-1.5 text-sm text-ink focus:border-brand-text focus:outline-none"
           >
             {PERIOD_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -445,11 +445,11 @@ export function PartnerModelView({ orgId }: { orgId: string }) {
 
         <Panel title="Fleet by family" hint="Printers this partner has, split by who supplied the hardware">
           <dl className="grid grid-cols-2 gap-3">
-            <div className="rounded border border-line px-3 py-2">
+            <div className="rounded-2xl border border-line px-3 py-2">
               <dt className="text-[11px] uppercase tracking-wider text-mute">MPrnt station</dt>
               <dd className="font-mono text-2xl text-ink">{stations}</dd>
             </div>
-            <div className="rounded border border-line px-3 py-2">
+            <div className="rounded-2xl border border-line px-3 py-2">
               <dt className="text-[11px] uppercase tracking-wider text-mute">Partner printer</dt>
               <dd className="font-mono text-2xl text-ink">{ownPrinters}</dd>
             </div>
@@ -463,7 +463,7 @@ export function PartnerModelView({ orgId }: { orgId: string }) {
             const isNow = record.businessModel === m.id;
             const isRegistered = registrationId === m.id;
             return (
-              <article key={m.id} className={cx('rounded border p-3', isNow ? 'border-amber/60 bg-amber/5' : 'border-line')}>
+              <article key={m.id} className={cx('rounded-2xl border p-3', isNow ? 'border-brand-text/60 bg-brand/5' : 'border-line')}>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Pill tone="amber">{m.short}</Pill>
                   {isNow && <Pill tone="ok">On now</Pill>}
@@ -490,7 +490,7 @@ export function PartnerModelView({ orgId }: { orgId: string }) {
             <select
               value={selected}
               onChange={(e) => setChoice(e.target.value)}
-              className="min-w-[260px] rounded border border-line bg-bg px-2.5 py-2 text-sm text-ink focus:border-amber focus:outline-none"
+              className="w-full md:min-w-[260px] rounded-2xl border border-line bg-bg px-2.5 py-2 text-sm text-ink focus:border-brand-text focus:outline-none"
             >
               <option value="">Not set</option>
               {BUSINESS_MODELS.map((m) => (

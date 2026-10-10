@@ -3,48 +3,117 @@
 @tailwind utilities;
 
 /*
- * Colour tokens. This console is dark only: operators look at dense figures for
- * long periods, and a single theme keeps the status colours meaning one thing.
- * The shop dashboard's brand green is deliberately absent. Amber marks the
- * platform, and red is reserved for things that cost money or cut access.
+ * MPrnt colour system for the platform console.
+ *
+ *   Forest green #195032  - the main colour: buttons, active states, the mark
+ *   Warm off-white #F7F5EF - the body colour: the page in light mode
+ *
+ * Tokens are RGB triplets so Tailwind can add opacity. Light is the default. Dark
+ * applies when the system prefers it, unless the operator picked light; or when
+ * the operator picked dark. The chosen theme is set before first paint by the
+ * script in app/layout.tsx, so there is no flash.
  */
+
 :root {
-  --c-bg: 7 10 15;
-  --c-surface: 12 17 24;
-  --c-raised: 19 26 37;
-  --c-line: 33 44 59;
-  --c-ink: 226 232 240;
-  --c-mute: 139 153 173;
-  --c-amber: 245 185 66;
-  --c-ok: 52 211 153;
-  --c-warn: 251 191 36;
-  --c-bad: 248 113 113;
-  --c-info: 96 165 250;
+  --c-bg: 247 245 239;
+  --c-surface: 255 255 252;
+  --c-raised: 240 237 229;
+  --c-line: 226 221 210;
+  --c-ink: 27 42 33;
+  --c-mute: 92 105 97;
+  --c-brand: 25 80 50;
+  --c-brand-text: 25 80 50;
+  --c-brand-ink: 255 255 255;
+  --c-brand-soft: 227 238 231;
+  --c-ok: 25 110 66;
+  --c-warn: 150 90 8;
+  --c-bad: 180 35 24;
+  --c-info: 46 94 140;
+  --shadow-card: 0 1px 2px rgb(27 42 33 / 0.05), 0 10px 30px -18px rgb(27 42 33 / 0.22);
+  --shadow-sheet: 0 -12px 40px -12px rgb(27 42 33 / 0.28);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --c-bg: 12 22 17;
+    --c-surface: 18 31 24;
+    --c-raised: 25 42 33;
+    --c-line: 44 66 53;
+    --c-ink: 236 243 238;
+    --c-mute: 158 177 164;
+    --c-brand: 46 122 82;
+    --c-brand-text: 111 196 153;
+    --c-brand-ink: 255 255 255;
+    --c-brand-soft: 27 54 40;
+    --c-ok: 111 196 153;
+    --c-warn: 240 190 80;
+    --c-bad: 248 124 113;
+    --c-info: 130 180 245;
+    --shadow-card: 0 0 0 1px rgb(44 66 53 / 0.5);
+    --shadow-sheet: 0 -12px 40px -12px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --c-bg: 12 22 17;
+  --c-surface: 18 31 24;
+  --c-raised: 25 42 33;
+  --c-line: 44 66 53;
+  --c-ink: 236 243 238;
+  --c-mute: 158 177 164;
+  --c-brand: 46 122 82;
+  --c-brand-text: 111 196 153;
+  --c-brand-ink: 255 255 255;
+  --c-brand-soft: 27 54 40;
+  --c-ok: 111 196 153;
+  --c-warn: 240 190 80;
+  --c-bad: 248 124 113;
+  --c-info: 130 180 245;
+  --shadow-card: 0 0 0 1px rgb(44 66 53 / 0.5);
+  --shadow-sheet: 0 -12px 40px -12px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
 html {
   background: rgb(var(--c-bg));
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   background: rgb(var(--c-bg));
   color: rgb(var(--c-ink));
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 14px;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
-  background: rgb(var(--c-amber) / 0.35);
+  background: rgb(var(--c-brand-text) / 0.3);
 }
 
-/* Visible focus everywhere, for keyboard users. */
+/* Visible focus for keyboard users, in both themes. */
 :focus-visible {
-  outline: 2px solid rgb(var(--c-amber));
+  outline: 2px solid rgb(var(--c-brand-text));
   outline-offset: 2px;
+}
+
+/* Inputs are 16px on a phone: anything smaller makes iOS zoom the page on focus. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+@media (min-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 15px;
+  }
 }
 
 .sr-only {
@@ -59,16 +128,28 @@ body {
   border: 0;
 }
 
+/* Keeps the bottom tab bar clear of the iPhone home indicator. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Numbers line up in columns. */
 table {
   font-variant-numeric: tabular-nums;
 }

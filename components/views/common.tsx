@@ -118,7 +118,7 @@ export function sum(values: (number | null | undefined)[]): number {
  */
 export function RawRecord({ value, label = 'Raw record' }: { value: unknown; label?: string }) {
   return (
-    <details className="rounded-md border border-line bg-surface">
+    <details className="rounded-3xl border border-line bg-surface">
       <summary className="cursor-pointer px-4 py-2.5 text-sm text-mute hover:text-ink">{label} (JSON)</summary>
       <pre className="max-h-[480px] overflow-auto border-t border-line px-4 py-3 font-mono text-[12px] leading-relaxed text-ink">
         {JSON.stringify(value, null, 2)}

@@ -304,51 +304,60 @@ export function StaffDetailView({ orgId, userId }: { orgId: string; userId: stri
         >
           {catalogue.error && <Notice tone="bad">{catalogue.error}</Notice>}
           {perms.error && <Notice tone="bad">{perms.error}</Notice>}
-          <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[640px] text-sm">
-              <caption className="sr-only">Permissions for this account</caption>
-              <thead>
-                <tr className="border-b border-line text-left text-[11px] uppercase tracking-wider text-mute">
-                  <th scope="col" className="px-2 py-2 font-medium">Permission</th>
-                  <th scope="col" className="px-2 py-2 font-medium">Role default</th>
-                  <th scope="col" className="px-2 py-2 font-medium">Override</th>
-                  <th scope="col" className="px-2 py-2 font-medium">Effective</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(catalogue.data?.permissions ?? []).map((p) => {
+          <DataTable
+            caption="Permissions for this account"
+            rows={catalogue.data?.permissions ?? []}
+            rowKey={(p) => p}
+            empty={catalogue.loading ? 'Loading…' : 'No permissions loaded'}
+            columns={[
+              {
+                key: 'perm',
+                header: 'Permission',
+                mono: true,
+                cell: (p: string) => (
+                  <span className="block">
+                    {p}
+                    {PLATFORM_ONLY.has(p) && (
+                      <span className="mt-1 block">
+                        <Pill tone="amber">platform only</Pill>
+                      </span>
+                    )}
+                  </span>
+                ),
+              },
+              { key: 'role', header: 'Role default', cell: (p: string) => (roleDefaults.has(p) ? 'Yes' : 'No') },
+              {
+                key: 'override',
+                header: 'Override',
+                cell: (p: string) => {
                   const effect = currentDraft[p] ?? 'inherit';
                   const platformOnly = PLATFORM_ONLY.has(p);
-                  const effective = effectiveFor(p, effect);
-                  const changed = effect !== (overrides.get(p) ?? 'inherit');
                   return (
-                    <tr key={p} className={cx('border-b border-line/60', changed && 'bg-amber/5')}>
-                      <td className="px-2 py-2 font-mono text-[13px] text-ink">
-                        {p}
-                        {platformOnly && <span className="ml-2"><Pill tone="amber">platform only</Pill></span>}
-                      </td>
-                      <td className="px-2 py-2 text-mute">{roleDefaults.has(p) ? 'Yes' : 'No'}</td>
-                      <td className="px-2 py-2">
-                        <Select
-                          aria-label={`Override for ${p}`}
-                          value={effect}
-                          className="w-auto min-w-[120px] py-1.5"
-                          onChange={(e) => setDraft({ ...currentDraft, [p]: e.target.value as Effect })}
-                        >
-                          <option value="inherit">Role default</option>
-                          <option value="grant" disabled={platformOnly}>
-                            Grant{platformOnly ? ' (not for shop staff)' : ''}
-                          </option>
-                          <option value="deny">Deny</option>
-                        </Select>
-                      </td>
-                      <td className="px-2 py-2">{effective ? <Pill tone="ok">allowed</Pill> : <Pill tone="muted">not allowed</Pill>}</td>
-                    </tr>
+                    <Select
+                      aria-label={`Override for ${p}`}
+                      value={effect}
+                      className="w-full md:w-auto md:min-w-[190px] py-2.5"
+                      onChange={(e) => setDraft({ ...currentDraft, [p]: e.target.value as Effect })}
+                    >
+                      <option value="inherit">Role default</option>
+                      <option value="grant" disabled={platformOnly}>
+                        Grant{platformOnly ? ' (not for shop staff)' : ''}
+                      </option>
+                      <option value="deny">Deny</option>
+                    </Select>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                },
+              },
+              {
+                key: 'eff',
+                header: 'Effective',
+                cell: (p: string) => {
+                  const effect = currentDraft[p] ?? 'inherit';
+                  return effectiveFor(p, effect) ? <Pill tone="ok">allowed</Pill> : <Pill tone="muted">not allowed</Pill>;
+                },
+              },
+            ]}
+          />
           <p className="mt-3 text-xs text-mute">
             Any change ends this person&apos;s current sessions, so they must sign in again to pick it up.
           </p>
@@ -497,7 +506,7 @@ function EditStaffDialog({ user, onClose, onSaved }: { user: StaffUser; onClose:
           </Select>
         </Field>
         <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" className="h-4 w-4 accent-amber" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-brand" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
           Account is active
         </label>
         {!isActive && <Notice tone="warn">Deactivating ends the person&apos;s sessions at once. They cannot sign in until reactivated.</Notice>}

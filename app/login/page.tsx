@@ -1,30 +1,33 @@
 import { Suspense } from 'react';
 import { LoginForm } from '@/components/console/LoginForm';
+import { Icons } from '@/components/ui/icons';
 
 export default function LoginPage() {
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <span aria-hidden className="grid h-9 w-9 place-items-center rounded bg-amber font-mono text-sm font-semibold text-[#111]">
-            M
+    <main className="flex min-h-[100dvh] flex-col">
+      <section className="safe-bottom flex flex-col justify-end rounded-b-[36px] bg-brand px-6 pb-14 pt-[max(env(safe-area-inset-top),3.5rem)] text-brand-ink md:px-12 md:pb-14">
+        <div className="mx-auto w-full max-w-md">
+          <span aria-hidden className="mb-8 grid h-14 w-14 place-items-center rounded-3xl bg-white/15">
+            <span className="block h-7 w-7">
+              <Icons.printer />
+            </span>
           </span>
-          <div>
-            <h1 className="text-base font-semibold text-ink">Platform console</h1>
-            <p className="font-mono text-[11px] uppercase tracking-wider text-amber">Platform operators only</p>
-          </div>
+          <p className="text-sm font-medium text-brand-ink/75">MPrnt</p>
+          <h1 className="mt-1 text-[34px] font-semibold leading-[1.1] tracking-tight md:text-4xl">Platform console</h1>
+          <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-brand-ink/80">Partners, printers and money, in one place. For platform operators only.</p>
         </div>
+      </section>
 
-        <div className="rounded-lg border border-line bg-surface p-5 shadow-2xl">
-          <Suspense fallback={<div className="h-64" />}>
+      <section className="flex flex-1 items-start justify-center px-5 pb-10 pt-8 md:items-center md:pt-0">
+        <div className="w-full max-w-md">
+          <Suspense fallback={<div className="h-72" />}>
             <LoginForm />
           </Suspense>
+          <p className="mt-6 text-center text-xs leading-relaxed text-mute">
+            Shop accounts sign in to the shop dashboard. Sign-in attempts, and every change made here, are recorded.
+          </p>
         </div>
-
-        <p className="mt-4 text-xs leading-relaxed text-mute">
-          Shop accounts sign in to the shop dashboard. Sign-in attempts, and every change made here, are recorded.
-        </p>
-      </div>
+      </section>
     </main>
   );
 }

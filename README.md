@@ -38,6 +38,24 @@ CSP, formatting, the tree). `npm run typecheck`, `npm run lint`, `npm run build`
 
 ---
 
+## Design: light, dark, and built for a phone
+
+The palette is MPrnt's: **forest green `#195032`** for the main colour, and **warm
+off-white `#F7F5EF`** for the body colour. Dark mode uses the same green lifted for
+legibility on a deep green-black ground.
+
+- **Theme.** Light by default, or the system setting. A **System / Light / Dark**
+  switch lives in *More* on a phone and in the top bar on a desktop. The choice is
+  stored on this device only, and a script in `app/layout.tsx` applies it before the
+  first paint, so there is no flash.
+- **Phone.** A bottom tab bar holds Home, Partners, Printers, Attention and More.
+  The navigator opens as a full sheet from *More → Explorer*, and Find (`⌘K`) is in the
+  top bar. Dialogs rise as bottom sheets with a grab handle, above the home indicator.
+  Every control is at least 44px tall. Inputs are 16px so iOS does not zoom on focus.
+  Lists are cards, and no page scrolls sideways. Wide tables scroll inside their own box.
+- **Desktop.** The navigator is a sidebar, and lists are dense tables.
+- **Motion.** Respects `prefers-reduced-motion`.
+
 ## What you can see and change
 
 The left side is a **tree**. Every node is a page, and every page has a URL.
@@ -131,7 +149,10 @@ dialog's state, and closing it clears it.
    request must come from this host (`Origin` or `Referer`). Otherwise 403.
 5. A body must be a single JSON object, at most 64 KB.
 6. The access token is attached on the server. On a 401 it refreshes once, and
-   concurrent refreshes share one exchange, because refresh tokens rotate.
+   concurrent refreshes share one exchange, because refresh tokens rotate. Only the
+   backend refusing the refresh token ends the session (`classifyRefreshStatus`). A
+   rate limit or a backend error answers the request with a 503 and keeps the cookies,
+   so a busy moment does not sign anyone out.
 
 **Content-Security-Policy with a per-request nonce** (`lib/csp.ts`, `middleware.ts`).
 Scripts run only with this response's nonce, or from a nonced script. There are no
@@ -199,13 +220,15 @@ app/
     auth/login|logout       sign-in (refuses non-platform) and sign-out
     proxy/[...path]/        the only route to the backend
 components/
-  console/                  Shell, TreeNav, Palette, LoginForm
-  ui/                       primitives, dialogs (typed confirm, show-once secret), tables
+  console/                  Shell (tab bar, More sheet, sidebar), TreeNav, Palette, LoginForm
+  ui/                       primitives, dialogs (bottom sheets, typed confirm, show-once
+                            secret), responsive lists, theme switch, icons
   views/                    one component per screen group
 lib/
-  gate.ts                   allowlist, query rules, origin checks (pure)
+  gate.ts                   allowlist, query rules, origin and refresh checks (pure)
   csp.ts                    the policy and the nonce (pure)
   tree.ts                   the navigator, from the four lists (pure)
+  theme.ts                  the theme choice and its storage key (pure)
   format.ts  models.ts  profile.ts  types.ts
   client/                   the browser's API wrapper and the console data provider
   server/                   config and cookies (server only)
@@ -217,7 +240,7 @@ tests/                      node --test on the pure modules
 
 ## Checked
 
-- `npm test`: 45 tests on the allowlist, query rules, origin and cross-site checks, JSON
+- `npm test`: 46 tests on the allowlist, query rules, origin and cross-site checks, JSON
   body limits, single-flight refresh, CSP, formatting, profile parsing and the tree.
 - Against the local backend, with a real platform account and a real shop account:
   a shop account with the correct password is refused and gets no cookie; a

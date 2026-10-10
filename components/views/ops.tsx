@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, Fragment, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { call, messageOf, qs } from '../../lib/client/api';
 import { useConsole, useResource } from '../../lib/client/console';
 import { actionLabel, count, dateTime } from '../../lib/format';
 import type { AdminRole, AuditEntry, Lead, PermissionCatalogue, QueueStatus } from '../../lib/types';
 import { DataTable, PageHeader, useToast } from '../ui/data';
-import { Button, Field, Input, Notice, Panel, Pill, Select, Stat, cx } from '../ui/primitives';
+import { Button, Field, Input, KV, Notice, Panel, Pill, Select, Stat, cx } from '../ui/primitives';
+import { Modal } from '../ui/dialogs';
 import { ROLE_LABEL, RawRecord, roleTone } from './common';
 
 const PAGE = 50;
@@ -23,7 +24,7 @@ export function AuditView({ orgId }: { orgId?: string }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [offset, setOffset] = useState(0);
-  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const [detail, setDetail] = useState<AuditEntry | null>(null);
 
   const actions = useResource<{ actions: string[] }>('audit/actions');
   const org = orgId ? ctx.organizations.find((o) => o.id === orgId) : null;
@@ -41,13 +42,6 @@ export function AuditView({ orgId }: { orgId?: string }) {
   const audit = useResource<{ total: number; entries: AuditEntry[] }>(path);
 
   const total = audit.data?.total ?? 0;
-  const toggle = (id: string) =>
-    setOpen((cur) => {
-      const next = new Set(cur);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
 
   return (
     <>
@@ -99,87 +93,75 @@ export function AuditView({ orgId }: { orgId?: string }) {
 
         {audit.error && <div className="mb-3"><Notice tone="bad">{audit.error}</Notice></div>}
 
-        <div className="-mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[860px] text-sm">
-            <caption className="sr-only">Audit entries</caption>
-            <thead>
-              <tr className="border-b border-line text-left text-[11px] uppercase tracking-wider text-mute">
-                <th scope="col" className="px-2.5 py-2 font-medium">When</th>
-                <th scope="col" className="px-2.5 py-2 font-medium">Action</th>
-                <th scope="col" className="px-2.5 py-2 font-medium">By</th>
-                {!orgId && <th scope="col" className="px-2.5 py-2 font-medium">Partner</th>}
-                <th scope="col" className="px-2.5 py-2 font-medium">On</th>
-                <th scope="col" className="px-2.5 py-2 font-medium">IP</th>
-                <th scope="col" className="px-2.5 py-2 font-medium"><span className="sr-only">Details</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(audit.data?.entries ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-2.5 py-8 text-center text-sm text-mute">
-                    {audit.loading ? 'Loading…' : 'No entries match these filters'}
-                  </td>
-                </tr>
-              )}
-              {(audit.data?.entries ?? []).map((e) => {
-                const expanded = open.has(e.id);
-                return (
-                  <Fragment key={e.id}>
-                    <tr className="border-b border-line/60 align-top hover:bg-raised/60">
-                      <td className="whitespace-nowrap px-2.5 py-2.5 text-ink">{dateTime(e.createdAt, org?.timezone)}</td>
-                      <td className="px-2.5 py-2.5">
-                        <div className="text-ink">{actionLabel(e.action)}</div>
-                        <div className="font-mono text-[11px] text-mute">{e.action}</div>
-                      </td>
-                      <td className="px-2.5 py-2.5">
-                        {e.actor ? (
-                          <>
-                            <div className="text-ink">{e.actor.email}</div>
-                            <Pill tone={roleTone(e.actor.role as AdminRole)}>{ROLE_LABEL[e.actor.role as AdminRole] ?? e.actor.role}</Pill>
-                          </>
-                        ) : (
-                          <span className="text-mute">{e.actorScope === 'platform' ? 'Platform' : 'Removed account'}</span>
-                        )}
-                      </td>
-                      {!orgId && <td className="px-2.5 py-2.5 text-ink">{e.organization?.name ?? '—'}</td>}
-                      <td className="px-2.5 py-2.5 text-xs text-mute">
-                        {e.resourceType ?? '—'}
-                        {e.resourceId && <div className="font-mono text-[11px]">{e.resourceId.slice(0, 13)}…</div>}
-                      </td>
-                      <td className="px-2.5 py-2.5 font-mono text-[12px] text-mute">{e.ipAddress ?? '—'}</td>
-                      <td className="px-2.5 py-2.5 text-right">
-                        <button
-                          type="button"
-                          aria-expanded={expanded}
-                          onClick={() => toggle(e.id)}
-                          className="rounded border border-line px-2 py-1 text-xs text-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
-                        >
-                          {expanded ? 'Hide' : 'Details'}
-                        </button>
-                      </td>
-                    </tr>
-                    {expanded && (
-                      <tr className="border-b border-line/60 bg-bg">
-                        <td colSpan={7} className="px-2.5 py-3">
-                          <pre className="max-h-64 overflow-auto rounded border border-line bg-surface p-3 font-mono text-[12px] text-ink">
-                            {JSON.stringify(
-                              { id: e.id, action: e.action, resourceType: e.resourceType, resourceId: e.resourceId, actor: e.actor, organization: e.organization, details: e.details, ipAddress: e.ipAddress, createdAt: e.createdAt },
-                              null,
-                              2
-                            )}
-                          </pre>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          caption="Audit entries"
+          rows={audit.data?.entries ?? []}
+          rowKey={(e) => e.id}
+          empty={audit.loading ? 'Loading…' : 'No entries match these filters'}
+          onRowClick={(e) => setDetail(e)}
+          columns={[
+            { key: 'when', header: 'When', cell: (e: AuditEntry) => dateTime(e.createdAt, org?.timezone) },
+            {
+              key: 'action',
+              header: 'Action',
+              cell: (e: AuditEntry) => (
+                <span className="block">
+                  <span className="block text-ink">{actionLabel(e.action)}</span>
+                  <span className="block font-mono text-xs text-mute">{e.action}</span>
+                </span>
+              ),
+            },
+            {
+              key: 'by',
+              header: 'By',
+              cell: (e: AuditEntry) =>
+                e.actor ? (
+                  <span className="block">
+                    <span className="block break-all text-ink">{e.actor.email}</span>
+                    <Pill tone={roleTone(e.actor.role as AdminRole)}>{ROLE_LABEL[e.actor.role as AdminRole] ?? e.actor.role}</Pill>
+                  </span>
+                ) : (
+                  <span className="text-mute">{e.actorScope === 'platform' ? 'Platform' : 'Removed account'}</span>
+                ),
+            },
+            ...(orgId ? [] : [{ key: 'org', header: 'Partner', cell: (e: AuditEntry) => e.organization?.name ?? '—' }]),
+            {
+              key: 'on',
+              header: 'On',
+              cell: (e: AuditEntry) => (
+                <span className="block text-xs text-mute">
+                  {e.resourceType ?? '—'}
+                  {e.resourceId && <span className="block font-mono">{e.resourceId.slice(0, 13)}…</span>}
+                </span>
+              ),
+            },
+            { key: 'ip', header: 'IP', mono: true, hideMobile: true, cell: (e: AuditEntry) => e.ipAddress ?? '—' },
+          ]}
+        />
 
         <Pager offset={offset} total={total} onOffset={setOffset} />
       </Panel>
+
+      <Modal open={detail !== null} onClose={() => setDetail(null)} title={detail ? actionLabel(detail.action) : ''}>
+        {detail && (
+          <div className="space-y-5">
+            <KV
+              columns={1}
+              items={[
+                { label: 'When', value: dateTime(detail.createdAt, org?.timezone) },
+                { label: 'Action (raw)', value: detail.action, mono: true },
+                { label: 'By', value: detail.actor ? `${detail.actor.email} · ${detail.actor.role}` : detail.actorScope },
+                { label: 'Partner', value: detail.organization?.name ?? 'Platform' },
+                { label: 'On', value: detail.resourceType ? `${detail.resourceType} · ${detail.resourceId ?? ''}` : null, mono: true },
+                { label: 'IP address', value: detail.ipAddress, mono: true },
+              ]}
+            />
+            <pre className="max-h-64 overflow-auto rounded-2xl bg-raised p-4 font-mono text-[12px] leading-relaxed text-ink">
+              {JSON.stringify(detail.details ?? {}, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
@@ -239,7 +221,7 @@ export function QueueView() {
         <Stat label="Failed" value={count(q?.failed)} tone={q && q.failed > 0 ? 'bad' : undefined} />
       </div>
       <p className="mt-4 text-sm text-mute">
-        Failed jobs are listed on the <a className="text-ink underline-offset-2 hover:text-amber hover:underline" href="/attention">Attention</a> page with their
+        Failed jobs are listed on the <a className="text-ink underline-offset-2 hover:text-brand-text hover:underline" href="/attention">Attention</a> page with their
         error, and a paid one can be refunded from there.
       </p>
     </>
@@ -299,40 +281,29 @@ export function PermissionsView() {
       <PageHeader title="Permissions" meta={<span>What each role may do. A person can have one permission added or removed on their own page.</span>} />
       <Panel>
         {cat.error && <div className="mb-3"><Notice tone="bad">{cat.error}</Notice></div>}
-        <div className="-mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[640px] text-sm">
-            <caption className="sr-only">Permissions by role</caption>
-            <thead>
-              <tr className="border-b border-line text-left text-[11px] uppercase tracking-wider text-mute">
-                <th scope="col" className="px-2.5 py-2 font-medium">Permission</th>
-                {order.map((r) => (
-                  <th key={r} scope="col" className="px-2.5 py-2 text-center font-medium">
-                    {ROLE_LABEL[r]}
-                  </th>
-                ))}
-                <th scope="col" className="px-2.5 py-2 font-medium">Who it applies to</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(cat.data?.permissions ?? []).map((p) => (
-                <tr key={p} className="border-b border-line/60">
-                  <td className="px-2.5 py-2 font-mono text-[13px] text-ink">{p}</td>
-                  {order.map((r) => {
-                    const has = roles.find((x) => x.role === r)?.permissions.includes(p) ?? false;
-                    return (
-                      <td key={r} className="px-2.5 py-2 text-center">
-                        {has ? <span className="text-ok" aria-label="Included">✓</span> : <span className="text-mute" aria-label="Not included">–</span>}
-                      </td>
-                    );
-                  })}
-                  <td className="px-2.5 py-2 text-xs text-mute">
-                    {PLATFORM_ONLY.has(p) ? <Pill tone="amber">Platform only · cannot be granted to shop staff</Pill> : 'Partner staff'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          caption="Permissions by role"
+          rows={cat.data?.permissions ?? []}
+          rowKey={(p) => p}
+          empty={cat.loading ? 'Loading…' : 'No permissions loaded'}
+          columns={[
+            { key: 'perm', header: 'Permission', mono: true, cell: (p: string) => p },
+            ...order.map((r) => ({
+              key: r,
+              header: ROLE_LABEL[r],
+              align: 'right' as const,
+              cell: (p: string) => {
+                const has = roles.find((x) => x.role === r)?.permissions.includes(p) ?? false;
+                return has ? <span className="font-semibold text-ok">Yes</span> : <span className="text-mute">No</span>;
+              },
+            })),
+            {
+              key: 'who',
+              header: 'Who it applies to',
+              cell: (p: string) => (PLATFORM_ONLY.has(p) ? <Pill tone="amber">Platform only · not for shop staff</Pill> : 'Partner staff'),
+            },
+          ]}
+        />
         <p className="mt-4 text-xs text-mute">
           Platform accounts are created on the command line and cannot be edited here. Partner staff can be granted or denied single permissions on their
           own page, and every change ends their sessions.

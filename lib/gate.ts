@@ -300,6 +300,15 @@ export function safeNextPath(next: string | null | undefined): string {
 // Session signals
 // ---------------------------------------------------------------------------
 
+/**
+ * What a refresh answer means. Only a refusal of the token itself ends the
+ * session. Anything else (rate limited, overloaded, erroring) leaves the session
+ * alone, because the refresh token was not spent by a request that never ran.
+ */
+export function classifyRefreshStatus(status: number): 'rejected' | 'unavailable' {
+  return status === 400 || status === 401 || status === 403 ? 'rejected' : 'unavailable';
+}
+
 /** Set by the proxy on a 401 when the refresh itself failed: the session is over. */
 export const SESSION_EXPIRED_HEADER = 'x-mprnt-session-expired';
 

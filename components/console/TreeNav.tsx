@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { activePath, nodeMatches, type TreeNode, type TreeSection } from '../../lib/tree.ts';
 import { StatusDot, cx } from '../ui/primitives';
+import { Icons } from '../ui/icons';
 
-const STORAGE_KEY = 'mprnt-sa-tree-open';
+const STORAGE_KEY = 'mprnt-platform-tree-open';
 
 function readOpen(): Set<string> {
   try {
@@ -20,25 +21,16 @@ function writeOpen(open: Set<string>) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...open]));
   } catch {
-    // Storage can be blocked. The tree still works; it just forgets its open branches.
+    // Storage can be blocked. The navigator still works; it just forgets its open branches.
   }
 }
 
 /**
- * The navigator. Every partner, QR point, printer and person is a node, and
- * every node is a page. The branch the operator is on opens by itself. The
- * open/closed state is remembered on this device only: it is a convenience,
- * and it holds nothing sensitive.
+ * The navigator: every partner, QR point, printer and person is a page. The branch
+ * the operator is on opens by itself. Open or closed is remembered on this device
+ * only, as a convenience.
  */
-export function TreeNav({
-  sections,
-  pathname,
-  onNavigate,
-}: {
-  sections: TreeSection[];
-  pathname: string;
-  onNavigate?: () => void;
-}) {
+export function TreeNav({ sections, pathname, onNavigate }: { sections: TreeSection[]; pathname: string; onNavigate?: () => void }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [loaded, setLoaded] = useState(false);
@@ -50,7 +42,6 @@ export function TreeNav({
 
   const trail = useMemo(() => activePath(sections, pathname), [sections, pathname]);
 
-  // Open the branch the operator is on, without closing anything else.
   useEffect(() => {
     if (!loaded || trail.length === 0) return;
     setOpen((current) => {
@@ -76,25 +67,28 @@ export function TreeNav({
   const filtering = query.trim().length > 0;
 
   return (
-    <nav aria-label="Console navigation" className="flex h-full flex-col">
-      <div className="border-b border-line p-3">
-        <label className="block">
-          <span className="sr-only">Filter the tree</span>
+    <nav aria-label="Navigator" className="flex h-full min-h-0 flex-col">
+      <div className="px-4 pb-3 pt-4">
+        <label className="relative block">
+          <span className="sr-only">Filter the navigator</span>
+          <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute">
+            <Icons.search />
+          </span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter partners, printers, staff"
-            className="w-full rounded border border-line bg-bg px-2.5 py-1.5 text-sm text-ink placeholder:text-mute/70 focus:border-amber focus:outline-none focus-visible:ring-2 focus-visible:ring-amber/40"
+            className="w-full min-h-[44px] rounded-full border border-line bg-bg py-2 pl-10 pr-4 text-ink placeholder:text-mute/80 focus:border-brand-text focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-text/40"
           />
         </label>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6">
         {sections.map((section) => (
-          <div key={section.id} className="mb-4">
-            <h2 className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-mute">{section.title}</h2>
-            <ul className="space-y-px">
+          <div key={section.id} className="mb-5">
+            <h2 className="px-3 pb-1.5 text-xs font-medium text-mute">{section.title}</h2>
+            <ul className="space-y-0.5">
               {section.nodes
                 .filter((n) => !filtering || nodeMatches(n, query))
                 .map((node) => (
@@ -149,10 +143,10 @@ function Branch({
     <li>
       <div
         className={cx(
-          'group flex items-center gap-1 rounded pr-1 transition',
-          isActive ? 'bg-amber/15 text-ink' : onTrail ? 'text-ink' : 'text-mute hover:bg-raised hover:text-ink'
+          'flex items-center gap-1 rounded-2xl pr-1 transition',
+          isActive ? 'bg-brand text-brand-ink' : onTrail ? 'text-ink' : 'text-ink hover:bg-raised'
         )}
-        style={{ paddingLeft: `${depth * 12 + 4}px` }}
+        style={{ paddingLeft: `${depth * 14 + 4}px` }}
       >
         {hasChildren ? (
           <button
@@ -160,30 +154,33 @@ function Branch({
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.label}`}
             aria-expanded={expanded}
             onClick={() => onToggle(node.id)}
-            className="grid h-7 w-5 shrink-0 place-items-center rounded text-xs text-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
+            className={cx(
+              'grid h-11 w-9 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text',
+              isActive ? 'text-brand-ink' : 'text-mute'
+            )}
           >
-            <span aria-hidden className={cx('transition-transform', expanded && 'rotate-90')}>
-              ▸
+            <span aria-hidden className={cx('block transition-transform', expanded && 'rotate-90')}>
+              <Icons.chevron />
             </span>
           </button>
         ) : (
-          <span aria-hidden className="w-5 shrink-0" />
+          <span aria-hidden className="w-9 shrink-0" />
         )}
 
         <Link
           href={node.href}
           aria-current={isActive ? 'page' : undefined}
           onClick={onNavigate}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded py-1.5 text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
+          className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2.5 rounded-2xl py-2 text-[15px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text"
         >
-          {node.tone && <StatusDot tone={node.tone} />}
+          {node.tone && <StatusDot tone={isActive ? 'muted' : node.tone} />}
           <span className="min-w-0 truncate">{highlight(node.label, filtering ? query : '')}</span>
-          {node.meta && <span className="ml-auto shrink-0 truncate font-mono text-[10px] text-mute">{node.meta}</span>}
+          {node.meta && <span className={cx('ml-auto shrink-0 truncate text-xs', isActive ? 'text-brand-ink/80' : 'text-mute')}>{node.meta}</span>}
         </Link>
       </div>
 
       {hasChildren && expanded && (
-        <ul className="space-y-px">
+        <ul className="space-y-0.5">
           {node.children!
             .filter((c) => !filtering || nodeMatches(c, query))
             .map((child) => (
@@ -214,7 +211,7 @@ function highlight(text: string, query: string): ReactNode {
   return (
     <>
       {text.slice(0, at)}
-      <mark className="rounded-sm bg-amber/30 text-ink">{text.slice(at, at + q.length)}</mark>
+      <mark className="rounded bg-brand-text/25 text-current">{text.slice(at, at + q.length)}</mark>
       {text.slice(at + q.length)}
     </>
   );

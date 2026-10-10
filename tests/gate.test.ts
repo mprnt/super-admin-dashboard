@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   checkJsonBody,
+  classifyRefreshStatus,
   checkQuery,
   createSingleFlight,
   isCrossSiteRequest,
@@ -220,4 +221,9 @@ test('a cross-site browser request is refused; same-site, none and absent are no
   assert.equal(isCrossSiteRequest('same-site'), false);
   assert.equal(isCrossSiteRequest('none'), false, 'typed address bar navigation');
   assert.equal(isCrossSiteRequest(null), false, 'no header from a non-browser client');
+});
+
+test('only a refused refresh token ends the session; a busy backend does not', () => {
+  for (const status of [400, 401, 403]) assert.equal(classifyRefreshStatus(status), 'rejected', String(status));
+  for (const status of [429, 500, 502, 503, 504]) assert.equal(classifyRefreshStatus(status), 'unavailable', String(status));
 });

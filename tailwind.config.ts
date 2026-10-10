@@ -1,9 +1,10 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * The platform console has its own palette and does not share the shop
- * dashboard's tokens. Colours are CSS variables (see app/globals.css) so the
- * one place that defines them is the stylesheet.
+ * Colour names map to the CSS variables in app/globals.css, so one stylesheet
+ * decides both themes. `brand` is the fill (buttons, the active tab); `brand-text`
+ * is the same green where it is read as text on the page, and it is lighter in
+ * dark mode so it stays legible.
  */
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
@@ -16,14 +17,21 @@ const config: Config = {
         line: 'rgb(var(--c-line) / <alpha-value>)',
         ink: 'rgb(var(--c-ink) / <alpha-value>)',
         mute: 'rgb(var(--c-mute) / <alpha-value>)',
-        amber: 'rgb(var(--c-amber) / <alpha-value>)',
+        brand: 'rgb(var(--c-brand) / <alpha-value>)',
+        'brand-text': 'rgb(var(--c-brand-text) / <alpha-value>)',
+        'brand-ink': 'rgb(var(--c-brand-ink) / <alpha-value>)',
+        'brand-soft': 'rgb(var(--c-brand-soft) / <alpha-value>)',
         ok: 'rgb(var(--c-ok) / <alpha-value>)',
         warn: 'rgb(var(--c-warn) / <alpha-value>)',
         bad: 'rgb(var(--c-bad) / <alpha-value>)',
         info: 'rgb(var(--c-info) / <alpha-value>)',
       },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        sheet: 'var(--shadow-sheet)',
+      },
       fontFamily: {
-        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
     },

@@ -156,7 +156,7 @@ export function OverviewView() {
         <Panel title="Business models" hint="Partners on each model">
           <ul className="space-y-2">
             {modelCounts.map(({ model, count: n }) => (
-              <li key={model.id} className="flex items-center justify-between gap-3 rounded border border-line px-3 py-2">
+              <li key={model.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-3 py-2">
                 <div className="min-w-0">
                   <div className="text-sm text-ink">{model.label}</div>
                   <div className="truncate text-xs text-mute">{model.name}</div>
@@ -164,7 +164,7 @@ export function OverviewView() {
                 <span className="font-mono text-lg tabular-nums text-ink">{n}</span>
               </li>
             ))}
-            <li className="flex items-center justify-between gap-3 rounded border border-dashed border-line px-3 py-2">
+            <li className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-line px-3 py-2">
               <div className="text-sm text-warn">Not recorded</div>
               <span className="font-mono text-lg tabular-nums text-warn">{notRecorded}</span>
             </li>
@@ -215,7 +215,7 @@ export function OverviewView() {
                     <div className="min-w-0 flex-1">
                       <Link
                         href={p.organization ? `/partners/${p.organization.id}/printers/${encodeURIComponent(p.printerId)}` : '/printers'}
-                        className="block truncate text-sm text-ink hover:text-amber"
+                        className="flex min-h-[44px] items-center truncate text-[15px] text-ink hover:text-brand-text"
                       >
                         {p.station.label}
                       </Link>

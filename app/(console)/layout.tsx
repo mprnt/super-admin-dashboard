@@ -1,5 +1,6 @@
 import { ConsoleProvider } from '@/lib/client/console';
 import { ToastProvider } from '@/components/ui/data';
+import { ThemeProvider } from '@/components/ui/theme';
 import { ConsoleShell } from '@/components/console/Shell';
 
 /**
@@ -8,10 +9,12 @@ import { ConsoleShell } from '@/components/console/Shell';
  */
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ToastProvider>
-      <ConsoleProvider>
-        <ConsoleShell>{children}</ConsoleShell>
-      </ConsoleProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <ConsoleProvider>
+          <ConsoleShell>{children}</ConsoleShell>
+        </ConsoleProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

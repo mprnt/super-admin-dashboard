@@ -11,6 +11,7 @@ import {
 } from '@/lib/server/session';
 import {
   MAX_BODY_BYTES,
+  classifyRefreshStatus,
   SESSION_EXPIRED_HEADER,
   checkJsonBody,
   checkQuery,
@@ -39,22 +40,39 @@ export const dynamic = 'force-dynamic';
  * The backend still checks everything: this site cannot grant itself access.
  */
 
+/**
+ * The outcome of trying to refresh the session. Only `rejected` means the
+ * session is over. `unavailable` (the backend was busy, rate-limited or
+ * unreachable) leaves the cookies alone, because the refresh token was never
+ * spent and the operator should not be signed out for a moment of backend load.
+ */
+type Refresh = { kind: 'ok'; tokens: Tokens } | { kind: 'rejected' } | { kind: 'unavailable' };
+
 // Rotating refresh tokens: several requests can 401 together and each would
 // spend the same refresh token. One refresh runs at a time, and its result is
 // reused briefly by requests still carrying the old cookie.
-const refreshOnce = createSingleFlight<Tokens | null>(30_000);
+const refreshOnce = createSingleFlight<Refresh>(30_000);
 
-async function callRefresh(req: NextRequest, refreshToken: string): Promise<Tokens | null> {
-  const res = await fetch(`${API_BASE}/admin/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...relayHeaders(req) },
-    body: JSON.stringify({ refreshToken }),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) return null;
-  const body = (await res.json().catch(() => ({}))) as { data?: Tokens };
-  return body.data ?? null;
+async function callRefresh(req: NextRequest, refreshToken: string): Promise<Refresh> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/admin/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...relayHeaders(req) },
+      body: JSON.stringify({ refreshToken }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    return { kind: 'unavailable' };
+  }
+
+  if (res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { data?: Tokens };
+    return body.data ? { kind: 'ok', tokens: body.data } : { kind: 'unavailable' };
+  }
+  // The backend answered and refused this refresh token: the session is over.
+  return classifyRefreshStatus(res.status) === 'rejected' ? { kind: 'rejected' } : { kind: 'unavailable' };
 }
 
 function refuse(status: number, message: string) {
@@ -132,13 +150,19 @@ async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
     const refreshToken = getRefreshToken();
     profile = getProfile();
 
+    let outcome: Refresh = { kind: 'rejected' };
     if (refreshToken && profile) {
-      refreshed = await refreshOnce(refreshToken, () => callRefresh(req, refreshToken)).catch(
-        () => null
+      outcome = await refreshOnce(refreshToken, () => callRefresh(req, refreshToken)).catch(
+        (): Refresh => ({ kind: 'unavailable' })
       );
     }
 
-    if (!refreshed || !profile) {
+    if (outcome.kind === 'unavailable') {
+      // The session may well be fine: keep the cookies and ask the operator to retry.
+      return refuse(503, 'The MPrnt backend is busy. Try again in a moment.');
+    }
+
+    if (outcome.kind === 'rejected' || !profile) {
       const res = NextResponse.json(
         { message: 'Session expired' },
         { status: 401, headers: { [SESSION_EXPIRED_HEADER]: '1' } }
@@ -146,6 +170,8 @@ async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
       clearSessionCookies(res);
       return res;
     }
+
+    refreshed = outcome.tokens;
 
     try {
       upstream = await call(refreshed.accessToken);

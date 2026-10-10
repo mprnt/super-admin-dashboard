@@ -8,12 +8,13 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
+/** Tones for status: always paired with a text label, never colour alone. */
 const TONE: Record<Tone, string> = {
-  ok: 'text-ok border-ok/40 bg-ok/10',
-  warn: 'text-warn border-warn/40 bg-warn/10',
-  bad: 'text-bad border-bad/40 bg-bad/10',
-  muted: 'text-mute border-line bg-raised',
-  amber: 'text-amber border-amber/40 bg-amber/10',
+  ok: 'bg-ok/10 text-ok',
+  warn: 'bg-warn/12 text-warn',
+  bad: 'bg-bad/10 text-bad',
+  muted: 'bg-raised text-mute',
+  amber: 'bg-brand-soft text-brand-text',
 };
 
 const DOT: Record<Tone, string> = {
@@ -21,29 +22,24 @@ const DOT: Record<Tone, string> = {
   warn: 'bg-warn',
   bad: 'bg-bad',
   muted: 'bg-mute',
-  amber: 'bg-amber',
+  amber: 'bg-brand-text',
 };
 
-/** A status chip. The label is always text, so status is never colour alone. */
+/** A status chip. The label is always text. */
 export function Pill({ tone = 'muted', children, dot = false }: { tone?: Tone; children: ReactNode; dot?: boolean }) {
   return (
-    <span
-      className={cx(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded border px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wide',
-        TONE[tone]
-      )}
-    >
-      {dot && <span aria-hidden className={cx('h-1.5 w-1.5 rounded-full', DOT[tone])} />}
-      {children}
+    <span className={cx('inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium', TONE[tone])}>
+      {dot && <span aria-hidden className={cx('h-1.5 w-1.5 shrink-0 rounded-full', DOT[tone])} />}
+      <span className="truncate">{children}</span>
     </span>
   );
 }
 
 export function StatusDot({ tone }: { tone?: Tone }) {
-  return <span aria-hidden className={cx('inline-block h-2 w-2 shrink-0 rounded-full', DOT[tone ?? 'muted'])} />;
+  return <span aria-hidden className={cx('inline-block h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone ?? 'muted'])} />;
 }
 
-/** A bordered region with a title row. The main unit of every page. */
+/** A card: the main unit of every screen. Rounded, on the surface colour. */
 export function Panel({
   title,
   hint,
@@ -60,25 +56,22 @@ export function Panel({
   id?: string;
 }) {
   return (
-    <section id={id} className={cx('rounded-md border border-line bg-surface', className)}>
+    <section id={id} className={cx('min-w-0 rounded-3xl bg-surface shadow-card', className)}>
       {(title || actions) && (
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+        <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-5 pb-1 pt-5">
           <div className="min-w-0">
-            {title && <h2 className="text-sm font-semibold text-ink">{title}</h2>}
-            {hint && <p className="mt-0.5 text-xs text-mute">{hint}</p>}
+            {title && <h2 className="text-[17px] font-semibold tracking-tight text-ink">{title}</h2>}
+            {hint && <p className="mt-0.5 text-sm leading-snug text-mute">{hint}</p>}
           </div>
           {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </section>
   );
 }
 
-/**
- * Every field the record has, as label / value pairs. Used so that a detail page
- * shows the whole record, not a summary of it.
- */
+/** Every field the record has, as label and value. Stacks on a phone, two columns on a desk. */
 export function KV({
   items,
   columns = 2,
@@ -88,12 +81,12 @@ export function KV({
 }) {
   const grid = columns === 3 ? 'md:grid-cols-3' : columns === 2 ? 'md:grid-cols-2' : 'grid-cols-1';
   return (
-    <dl className={cx('grid grid-cols-1 gap-x-6 gap-y-3', grid)}>
+    <dl className={cx('grid grid-cols-1 gap-x-8 gap-y-0', grid)}>
       {items.map((item) => (
-        <div key={item.label} className={cx('min-w-0 border-b border-line/60 pb-2', item.wide && 'md:col-span-2')}>
-          <dt className="text-[11px] uppercase tracking-wider text-mute">{item.label}</dt>
-          <dd className={cx('mt-0.5 break-words text-sm text-ink', item.mono && 'font-mono text-[13px]')}>
-            {item.value ?? <span className="text-mute">—</span>}
+        <div key={item.label} className={cx('min-w-0 border-b border-line py-3 last:border-b-0', item.wide && 'md:col-span-2')}>
+          <dt className="text-xs font-medium text-mute">{item.label}</dt>
+          <dd className={cx('mt-1 break-words text-[15px] text-ink', item.mono && 'font-mono text-[13px]')}>
+            {item.value ?? <span className="text-mute">Not set</span>}
           </dd>
         </div>
       ))}
@@ -101,35 +94,35 @@ export function KV({
   );
 }
 
-export function Stat({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: ReactNode;
-  sub?: ReactNode;
-  tone?: Tone;
-}) {
+/** A headline number: big, quiet, and never shouting. */
+export function Stat({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: Tone }) {
   return (
-    <div className="min-w-0 rounded-md border border-line bg-surface px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wider text-mute">{label}</div>
-      <div className={cx('mt-1 font-mono text-xl font-semibold tabular-nums', tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : 'text-ink')}>
+    <div className="min-w-0 rounded-3xl bg-surface p-4 shadow-card md:p-5">
+      <div className="text-xs font-medium text-mute">{label}</div>
+      <div
+        className={cx(
+          'mt-1.5 break-words text-2xl font-semibold tracking-tight tabular-nums md:text-[28px]',
+          tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : 'text-ink'
+        )}
+      >
         {value}
       </div>
-      {sub && <div className="mt-0.5 text-xs text-mute">{sub}</div>}
+      {sub && <div className="mt-1 text-xs leading-snug text-mute">{sub}</div>}
     </div>
   );
 }
 
 const BUTTON: Record<'default' | 'primary' | 'danger' | 'ghost', string> = {
-  default: 'border-line bg-raised text-ink hover:border-mute',
-  primary: 'border-amber/60 bg-amber text-[#111] hover:brightness-110',
-  danger: 'border-bad/60 bg-bad/15 text-bad hover:bg-bad/25',
-  ghost: 'border-transparent bg-transparent text-mute hover:text-ink',
+  default: 'border border-line bg-surface text-ink hover:bg-raised',
+  primary: 'bg-brand text-brand-ink hover:brightness-110',
+  danger: 'border border-bad/50 bg-surface text-bad hover:bg-bad/10',
+  ghost: 'text-brand-text hover:bg-brand-soft',
 };
 
+const BUTTON_BASE =
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition select-none disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-text active:scale-[0.98]';
+
+/** A pill button. Every size is at least 44px tall on a phone, the touch target size. */
 export function Button({
   variant = 'default',
   size = 'md',
@@ -140,13 +133,7 @@ export function Button({
     <button
       type="button"
       {...props}
-      className={cx(
-        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded border font-medium transition disabled:cursor-not-allowed disabled:opacity-50',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber',
-        size === 'sm' ? 'min-h-[32px] px-2.5 text-xs' : 'min-h-[38px] px-3 text-sm',
-        BUTTON[variant],
-        className
-      )}
+      className={cx(BUTTON_BASE, size === 'sm' ? 'min-h-[44px] px-4 text-sm md:min-h-[40px]' : 'min-h-[48px] px-6 text-[15px]', BUTTON[variant], className)}
     />
   );
 }
@@ -165,12 +152,7 @@ export function LinkButton({
   return (
     <Link
       href={href}
-      className={cx(
-        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded border font-medium transition',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber',
-        size === 'sm' ? 'min-h-[32px] px-2.5 text-xs' : 'min-h-[38px] px-3 text-sm',
-        BUTTON[variant]
-      )}
+      className={cx(BUTTON_BASE, size === 'sm' ? 'min-h-[44px] px-4 text-sm md:min-h-[40px]' : 'min-h-[48px] px-6 text-[15px]', BUTTON[variant])}
     >
       {children}
     </Link>
@@ -178,25 +160,15 @@ export function LinkButton({
 }
 
 const FIELD =
-  'w-full rounded border border-line bg-bg px-2.5 py-2 text-sm text-ink placeholder:text-mute/70 focus:border-amber focus:outline-none focus-visible:ring-2 focus-visible:ring-amber/40 disabled:opacity-50';
+  'w-full min-h-[48px] rounded-2xl border border-line bg-bg px-4 py-2.5 text-ink placeholder:text-mute/70 transition focus:border-brand-text focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-text/40 disabled:opacity-50';
 
-export function Field({
-  label,
-  hint,
-  error,
-  children,
-}: {
-  label: string;
-  hint?: ReactNode;
-  error?: string | null;
-  children: ReactNode;
-}) {
+export function Field({ label, hint, error, children }: { label: string; hint?: ReactNode; error?: string | null; children: ReactNode }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-xs font-medium text-mute">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
       {children}
-      {hint && !error && <span className="mt-1 block text-xs text-mute">{hint}</span>}
-      {error && <span className="mt-1 block text-xs text-bad">{error}</span>}
+      {hint && !error && <span className="mt-1.5 block text-xs leading-snug text-mute">{hint}</span>}
+      {error && <span className="mt-1.5 block text-xs text-bad">{error}</span>}
     </label>
   );
 }
@@ -206,71 +178,78 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cx(FIELD, 'pr-8', props.className)} />;
+  return <select {...props} className={cx(FIELD, 'appearance-none bg-[length:14px] bg-[right_1rem_center] bg-no-repeat pr-10', props.className)} style={{ backgroundImage: CHEVRON, ...props.style }} />;
 }
 
+/** A small down-chevron for selects, drawn in the mute colour so it reads in both themes. */
+const CHEVRON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%235C6961' stroke-width='1.8'%3E%3Cpath d='M5 8l5 5 5-5'/%3E%3C/svg%3E\")";
+
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={cx(FIELD, 'min-h-[84px]', props.className)} />;
+  return <textarea {...props} className={cx(FIELD, 'min-h-[96px]', props.className)} />;
 }
 
 export function Notice({ tone = 'warn', children }: { tone?: 'warn' | 'bad' | 'ok' | 'info'; children: ReactNode }) {
   const map = {
-    warn: 'border-warn/40 bg-warn/10 text-warn',
-    bad: 'border-bad/40 bg-bad/10 text-bad',
-    ok: 'border-ok/40 bg-ok/10 text-ok',
-    info: 'border-info/40 bg-info/10 text-info',
+    warn: 'bg-warn/10 text-warn',
+    bad: 'bg-bad/10 text-bad',
+    ok: 'bg-ok/10 text-ok',
+    info: 'bg-info/10 text-info',
   } as const;
-  return <div role={tone === 'bad' ? 'alert' : 'note'} className={cx('rounded border px-3 py-2 text-sm', map[tone])}>{children}</div>;
+  return <div role={tone === 'bad' ? 'alert' : 'note'} className={cx('rounded-2xl px-4 py-3 text-sm leading-relaxed', map[tone])}>{children}</div>;
 }
 
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded border border-dashed border-line px-4 py-8 text-center">
-      <p className="text-sm font-medium text-ink">{title}</p>
-      {children && <p className="mt-1 text-xs text-mute">{children}</p>}
+    <div className="rounded-2xl bg-raised px-5 py-8 text-center">
+      <p className="text-[15px] font-medium text-ink">{title}</p>
+      {children && <p className="mt-1 text-sm text-mute">{children}</p>}
     </div>
   );
 }
 
 export function Loading({ label = 'Loading' }: { label?: string }) {
   return (
-    <div role="status" className="flex items-center gap-2 py-6 text-sm text-mute">
-      <span aria-hidden className="h-3 w-3 animate-pulse rounded-full bg-amber" />
-      {label}…
+    <div role="status" className="space-y-3 py-4">
+      <p className="text-sm text-mute">{label}…</p>
+      <div className="h-4 w-2/3 animate-pulse rounded-full bg-raised" />
+      <div className="h-4 w-1/2 animate-pulse rounded-full bg-raised" />
     </div>
   );
 }
 
 export function ErrorState({ error, onRetry }: { error: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded border border-bad/40 bg-bad/10 px-3 py-2.5 text-sm text-bad">
-      <span>{error}</span>
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-bad/10 px-4 py-3 text-sm text-bad">
+      <span className="min-w-0 flex-1">{error}</span>
       {onRetry && (
-        <Button size="sm" onClick={onRetry}>
-          Retry
+        <Button size="sm" variant="danger" onClick={onRetry}>
+          Try again
         </Button>
       )}
     </div>
   );
 }
 
-/** Sub-navigation within one entity. Horizontal, and scrolls on a phone. */
+/** Sub-navigation within one partner. A scrolling row of pills on a phone. */
 export function Tabs({ items }: { items: { href: string; label: string; active: boolean }[] }) {
   return (
-    <nav aria-label="Sections" className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1">
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          aria-current={item.active ? 'page' : undefined}
-          className={cx(
-            'whitespace-nowrap border-b-2 px-3 py-2 text-sm transition',
-            item.active ? 'border-amber text-ink' : 'border-transparent text-mute hover:text-ink'
-          )}
-        >
-          {item.label}
-        </Link>
-      ))}
+    <nav aria-label="Sections" className="no-scrollbar -mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+      <div className="flex w-max gap-2 py-1 md:w-auto md:flex-wrap">
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={item.active ? 'page' : undefined}
+            className={cx(
+              'inline-flex min-h-[44px] items-center whitespace-nowrap rounded-full px-4 text-sm font-medium transition',
+              item.active ? 'bg-brand text-brand-ink' : 'bg-surface text-ink shadow-card hover:bg-raised'
+            )}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 }
