@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Colour tokens. This console is dark only: operators look at dense figures for
+ * long periods, and a single theme keeps the status colours meaning one thing.
+ * The shop dashboard's brand green is deliberately absent. Amber marks the
+ * platform, and red is reserved for things that cost money or cut access.
+ */
+:root {
+  --c-bg: 7 10 15;
+  --c-surface: 12 17 24;
+  --c-raised: 19 26 37;
+  --c-line: 33 44 59;
+  --c-ink: 226 232 240;
+  --c-mute: 139 153 173;
+  --c-amber: 245 185 66;
+  --c-ok: 52 211 153;
+  --c-warn: 251 191 36;
+  --c-bad: 248 113 113;
+  --c-info: 96 165 250;
+  color-scheme: dark;
+}
+
+html {
+  background: rgb(var(--c-bg));
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: rgb(var(--c-bg));
+  color: rgb(var(--c-ink));
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(var(--c-amber) / 0.35);
+}
+
+/* Visible focus everywhere, for keyboard users. */
+:focus-visible {
+  outline: 2px solid rgb(var(--c-amber));
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Numbers line up in columns. */
+table {
+  font-variant-numeric: tabular-nums;
+}
