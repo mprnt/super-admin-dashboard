@@ -80,6 +80,12 @@ export const PLATFORM_ROUTES: ReadonlyArray<readonly [Method, Template]> = [
   ['GET', 'pricing/lists'],
   ['POST', 'pricing/lists'],
 
+  // Revenue split (Model 2 · Option A). Written by the platform only; the API
+  // checks the caller as well, so this list is not the only guard.
+  ['GET', 'revenue-split'],
+  ['GET', 'revenue-split/summary'],
+  ['POST', 'revenue-split'],
+
   // Audit and leads
   ['GET', 'audit'],
   ['GET', 'audit/actions'],

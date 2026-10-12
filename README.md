@@ -74,8 +74,8 @@ Across every partner
 
 **Revenue by printer.** A partner's paid revenue is split across its printers on the Money
 page, and the split always adds up to the partner total. A paid job is credited to a printer
-through its print-queue row. A paid job that failed before it was queued has no printer, so it
-is shown on its own row, "Never reached a printer", and not hidden. Each printer page shows its
+through its print-queue row. A paid job that no printer has taken (still queued, or never reached a printer)
+has no printer, so it is shown on its own row, "Not at a printer", and not hidden. Each printer page shows its
 share of the partner's revenue for the chosen period.
 
 - **Every record.** Each detail page shows its fields in a readable layout, and a
@@ -96,8 +96,21 @@ Each one asks for a typed confirmation or a reason, and each is written to the a
 | QR point | create; edit name, location, status; move to another partner; enrol a printer (key shown once) | typed code for a move |
 | Printer | edit name and station; rotate key (new key shown once); revoke | typed printer ID |
 | Pricing | publish rates for the platform, a partner or one QR point | typed `PUBLISH` |
+| Revenue split (Model 2 · Option A) | set the partner's share for the whole partner or one QR point, now or from a date | typed partner name and a written reason (3+ characters) |
 | Job | refund a paid job that has not printed | reason (3+ characters) and the job's prefix |
 | Account | change own password (signs you out everywhere) | current password |
+
+### Revenue split (Model 2 · Option A)
+
+On a revenue-share station, the partner keeps a set percentage of each paid sale and MPrnt keeps the rest. The console sets it on the partner's **Business model** tab. Only super admins can write it; the shop sees its own share read-only on its overview.
+
+- **Scopes.** One partner-wide default, plus an optional override for one QR point. The override wins at that QR point only.
+- **When it applies.** A term applies from its start time (now, or midnight IST on a chosen day). Future terms are shown as scheduled and do not change today's sales. A term cannot be backdated.
+- **Each sale keeps its rate.** A sale is split when its payment is captured, using the term in force at that moment, and the result is written onto the job. Changing a term never moves money already split. Sales made before any term show as **Not split**, and they are not split after the fact.
+- **Exact money.** Partner and MPrnt amounts are computed in Postgres to the paisa, and MPrnt's share is the total minus the partner's, so they always add back to the sale.
+- **History is append-only.** Terms are never edited or deleted. The database refuses both, and each new term is audited with the value it replaced.
+
+Partners not on Option A are never split, and the split cannot be recorded for them.
 
 Secrets (printer keys, temporary passwords) are shown **once**. The dialog cannot be
 closed until the operator ticks "I have saved this". The value is held only in that

@@ -11,6 +11,7 @@ import { DataTable, PageHeader, useToast } from '../ui/data';
 import { ConfirmDialog, Modal } from '../ui/dialogs';
 import { Button, Field, Input, KV, LinkButton, Loading, Notice, Panel, Pill, Stat, Tabs, Textarea, cx } from '../ui/primitives';
 import { ModelPill, OrgPill, RawRecord } from './common';
+import { RevenueSplitPanel } from './split';
 
 // ---------------------------------------------------------------------------
 // Frame: the header and tabs every partner page shares
@@ -505,6 +506,8 @@ export function PartnerModelView({ orgId }: { orgId: string }) {
           </Button>
         </form>
       </Panel>
+
+      <RevenueSplitPanel org={record} />
 
       <Panel title="Change history" hint="Each time the partnership model was changed, with the values before and after">
         {changes.error && <Notice tone="bad">{changes.error}</Notice>}

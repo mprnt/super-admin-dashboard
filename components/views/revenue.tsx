@@ -86,7 +86,7 @@ export function RevenueByPrinter({ orgId, period, timezone }: { orgId: string; p
   return (
     <Panel
       title="Revenue by printer"
-      hint="Every paid job in this period, credited to the printer that took it. A paid job that failed before it reached any printer has no printer, so it is shown on its own row."
+      hint="Every paid job in this period, credited to the printer that took it. A paid job no printer has taken is shown on its own row."
     >
       <DataTable
         caption="Revenue by printer"
@@ -127,12 +127,12 @@ export function RevenueByPrinter({ orgId, period, timezone }: { orgId: string; p
 
       {split.unattributed.paidJobs > 0 && (
         <p className="mt-4 text-sm leading-relaxed text-mute">
-          {count(split.unattributed.paidJobs)} paid job{split.unattributed.paidJobs === 1 ? '' : 's'} ({money(split.unattributed.revenue)}) failed before they were queued, so no
-          printer took them and no printer can be credited. They are still revenue to the partner, and they are listed on{' '}
+          {count(split.unattributed.paidJobs)} paid job{split.unattributed.paidJobs === 1 ? '' : 's'} ({money(split.unattributed.revenue)}) {split.unattributed.paidJobs === 1 ? 'has' : 'have'} no printer.
+          Each one is either still waiting in the print queue, because no printer has claimed it, or never reached a printer. They are still revenue to the partner, and they are listed on{' '}
           <Link href={`/partners/${seg(orgId)}/attention`} className="font-medium text-brand-text underline-offset-4 hover:underline">
             Attention
           </Link>{' '}
-          until they are refunded.
+          until they are printed or refunded.
         </p>
       )}
       {truncated && <div className="mt-4"><Notice tone="warn">This period has more than {count(PAGE * MAX_PAGES)} jobs. The split covers the first {count(PAGE * MAX_PAGES)}. Narrow the period to see all of it.</Notice></div>}

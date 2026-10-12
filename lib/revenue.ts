@@ -1,9 +1,9 @@
 /**
  * Splits a partner's paid revenue across its printers, and shows what is left over.
  *
- * The backend credits a job to a printer only through its print-queue row. A paid
- * job that failed before it was ever queued has no printer, so it counts towards
- * the partner's revenue but to no printer. This keeps the two figures reconciling
+ * The backend credits a job to a printer only once a printer has claimed it from the
+ * queue. A paid job that is still queued, or that never reached a printer, has no
+ * printer, so it counts towards the partner's revenue but to no printer. This keeps the two figures reconciling
  * on screen, rather than leaving a printer that reads ₹0 next to a partner that
  * reads ₹103.
  *

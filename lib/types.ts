@@ -292,3 +292,52 @@ export interface SessionUser {
   role: AdminRole;
   mustChangePassword: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Revenue split (Model 2 · Option A)
+// ---------------------------------------------------------------------------
+
+export type SplitStatus = 'active' | 'scheduled' | 'superseded';
+
+/** One recorded term. Terms are append-only: a change is a new row. */
+export interface SplitTerm {
+  id: string;
+  scope: 'partner' | 'qr_point';
+  kioskId: string | null;
+  kioskName: string | null;
+  partnerSharePct: number;
+  platformSharePct: number;
+  effectiveFrom: string;
+  status: SplitStatus;
+  note: string;
+  createdAt: string;
+  /** Email of who set the term. Only sent to a super admin. */
+  createdBy?: string | null;
+}
+
+/** The split a QR point earns on right now. Null shares = no term applies yet. */
+export interface SplitQrPoint {
+  kioskId: string;
+  kioskName: string;
+  partnerSharePct: number | null;
+  platformSharePct: number | null;
+  source: 'qr_point' | 'partner' | null;
+  effectiveFrom: string | null;
+}
+
+export interface SplitView {
+  applies: boolean;
+  partnerDefault: { partnerSharePct: number; platformSharePct: number; effectiveFrom: string } | null;
+  byQrPoint: SplitQrPoint[];
+  history: SplitTerm[];
+}
+
+export interface SplitSummary {
+  range: { from: string; to: string; timezone: string };
+  paidJobs: number;
+  splitJobs: number;
+  grossRevenue: number;
+  partnerRevenue: number;
+  platformRevenue: number;
+  unsplitRevenue: number;
+}

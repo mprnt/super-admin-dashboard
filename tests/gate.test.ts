@@ -35,6 +35,9 @@ test('the route allowlist admits what the console calls', () => {
     ['POST', ['printers', 'RPI_M002_01', 'revoke']],
     ['PUT', ['users', USER, 'permissions']],
     ['POST', ['print-jobs', ORG, 'refund']],
+    ['GET', ['revenue-split']],
+    ['GET', ['revenue-split', 'summary']],
+    ['POST', ['revenue-split']],
     ['GET', ['reports', 'sessions', 'export']],
     ['GET', ['auth', 'me']],
     ['POST', ['auth', 'change-password']],
@@ -60,6 +63,10 @@ test('the allowlist refuses everything else, including shop-only and auth routes
     ['DELETE', ['users', USER, 'permissions']], // PUT is the only write
     ['GET', ['queue', 'status', 'extra']],
     ['GET', ['unknown']],
+    ['DELETE', ['revenue-split']], // a term is never removed; the history is append-only
+    ['PATCH', ['revenue-split']], // ...nor edited
+    ['PUT', ['revenue-split']],
+    ['POST', ['revenue-split', 'summary']], // the summary is read-only
     ['GET', []],
   ];
   for (const [method, segments] of refused) {
