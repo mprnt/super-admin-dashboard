@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activePath, buildTree, flattenTree, nodeMatches, type TreeSection } from '../lib/tree.ts';
+import { activePath, buildSearchIndex, buildTree, flattenTree, nodeMatches } from '../lib/tree.ts';
 import type { Kiosk, Organization, Printer, StaffUser } from '../lib/types.ts';
 
 const org = (id: string, name: string, extra: Partial<Organization> = {}): Organization => ({
@@ -71,7 +71,7 @@ const input = {
   kiosks: [kiosk(K2, ORG_A, 'S2'), kiosk(K1, ORG_A, 'S1')],
   printers: [
     printer('RPI_B', K1, ORG_A, 'Counter B', { status: 'busy' }),
-    printer('RPI_A', K1, ORG_A, 'Counter A', { station: { isStation: true, name: 'Front desk', label: 'Front desk' } }),
+    printer('RPI_A', K1, ORG_A, 'Front desk', { station: { isStation: true, name: 'Front desk', label: 'Front desk' } }),
     printer('RPI_OFF', K2, ORG_A, 'Desk', { status: 'offline' }),
   ],
   users: [
@@ -86,9 +86,15 @@ const sections = buildTree(input);
 const partners = sections.find((s) => s.id === 'partners')!.nodes;
 const alpha = partners.find((n) => n.id === `partner:${ORG_A}`)!;
 
-test('partners are listed by name, and a suspended one is marked', () => {
-  assert.deepEqual(partners.map((n) => n.label), ['Alpha Print', 'Zeta Print']);
-  assert.equal(alpha.tone, 'bad');
+test('the navigator has three sections: platform pages, partners, and everything across partners', () => {
+  assert.deepEqual(sections.map((s) => s.title), ['Platform', 'Partners', 'Across every partner']);
+});
+
+test('a partner is a single row: its sections live in the partner tabs, not the navigator', () => {
+  assert.deepEqual(partners.map((n) => n.label), ['Alpha Print', 'Zeta Print'], 'sorted by name');
+  for (const node of partners) assert.equal(node.children, undefined, `${node.label} has no sub-items`);
+  assert.equal(alpha.href, `/partners/${ORG_A}`);
+  assert.equal(alpha.tone, 'bad', 'a suspended partner is marked');
   assert.equal(alpha.meta, 'Model 2A');
 });
 
@@ -97,83 +103,33 @@ test('a partner with no model shows that, not a blank', () => {
   assert.equal(zeta.meta, 'No model');
 });
 
-test('staff are ordered by role then email, and removed accounts are hidden', () => {
-  const staff = alpha.children!.find((c) => c.id === `p:${ORG_A}:staff`)!;
-  assert.deepEqual(
-    staff.children!.map((c) => c.id),
-    ['user:u-owner', 'user:u-viewer'],
-    'owner first, removed manager gone'
-  );
-  assert.equal(staff.meta, '2', 'the count matches what is shown');
+test('the navigator no longer lists a partner’s staff, QR points or printers', () => {
+  const navigatorIds = flattenTree(sections).map((n) => n.id);
+  assert.equal(navigatorIds.some((id) => id.startsWith('printer:') || id.startsWith('user:') || id.startsWith('kiosk:')), false);
 });
 
-test('QR points are sorted by code and each holds its own printers', () => {
-  const qr = alpha.children!.find((c) => c.id === `p:${ORG_A}:qr`)!;
-  assert.deepEqual(qr.children!.map((c) => c.label), ['S1 · Desk S1', 'S2 · Desk S2']);
-  const s1 = qr.children![0]!;
-  assert.deepEqual(s1.children!.map((c) => c.label), ['Counter B', 'Front desk'], 'printers sorted by label');
+test('the search index still reaches printers, people, QR points and partners directly', () => {
+  const index = buildSearchIndex(input);
+  const printerHit = index.find((n) => n.id === 'printer:RPI_B')!;
+  assert.equal(printerHit.href, `/partners/${ORG_A}/printers/RPI_B`);
+  assert.equal(printerHit.kind, 'Printer');
+  const personHit = index.find((n) => n.id === 'user:u-owner')!;
+  assert.equal(personHit.href, `/partners/${ORG_A}/staff/u-owner`);
+  assert.ok(index.some((n) => n.id === `kiosk:${K1}` && n.href === `/partners/${ORG_A}/qr-points/${K1}`));
+  assert.ok(index.some((n) => n.id === `partner:${ORG_B}`));
+  assert.equal(index.some((n) => n.id === 'user:u-gone'), false, 'a removed account is not searchable');
 });
 
-test('every printer links to its own page, under its partner', () => {
-  const qr = alpha.children!.find((c) => c.id === `p:${ORG_A}:qr`)!;
-  const printerNode = qr.children![0]!.children![0]!;
-  assert.equal(printerNode.href, `/partners/${ORG_A}/printers/RPI_B`);
-  assert.equal(printerNode.tone, 'ok');
-  const station = qr.children![0]!.children![1]!;
-  assert.equal(station.href, `/partners/${ORG_A}/printers/RPI_A`);
-});
-
-test('an offline printer is a warning, a revoked one is an error', () => {
-  const offline = flattenTree(sections).find((n) => n.id === 'printer:RPI_OFF')!;
-  assert.equal(offline.tone, 'warn');
-  const revokedTree = buildTree({ ...input, printers: [printer('RPI_R', K1, ORG_A, 'Gone', { enrollment: { keyPrefix: null, keyIssuedAt: null, enrolled: false, revokedAt: '2026-03-01', lastSeenIp: null } })] });
-  const r = flattenTree(revokedTree).find((n) => n.id === 'printer:RPI_R')!;
-  assert.equal(r.tone, 'bad');
-});
-
-test('the platform section and the across-every-partner section are present', () => {
-  const titles = sections.map((s) => s.title);
-  assert.deepEqual(titles, ['Platform', 'Partners', 'Across every partner']);
-  const ops = sections[2]!.nodes.map((n) => n.href);
-  assert.ok(ops.includes('/printers') && ops.includes('/staff') && ops.includes('/permissions'));
-});
-
-test('the active branch is found from the deepest matching page', () => {
-  assert.deepEqual(
-    activePath(sections, `/partners/${ORG_A}/staff/u-owner`).slice(-1),
-    ['user:u-owner'],
-    'the person, not the partner it belongs to'
-  );
-  const trail = activePath(sections, `/partners/${ORG_A}/printers/RPI_A`);
-  assert.equal(trail.length, 4, 'partner, QR points, the QR point, the printer');
-  assert.equal(trail[0], `partner:${ORG_A}`);
-  assert.equal(trail[trail.length - 1], 'printer:RPI_A');
-});
-
-test('a partner overview page is on the partner node itself', () => {
-  const trail = activePath(sections, `/partners/${ORG_A}`);
-  assert.equal(trail.length, 2, 'partner, then its Overview leaf');
-  assert.equal(trail[trail.length - 1], `p:${ORG_A}:overview`);
-});
-
-test('an unknown path has no active branch', () => {
+test('the active row is the partner for every page inside it, and the page itself on its own route', () => {
+  assert.deepEqual(activePath(sections, `/partners/${ORG_A}/printers/RPI_A`), [`partner:${ORG_A}`]);
+  assert.deepEqual(activePath(sections, `/partners/${ORG_A}`), [`partner:${ORG_A}`]);
+  assert.deepEqual(activePath(sections, '/printers'), ['all-printers']);
   assert.deepEqual(activePath(sections, '/nowhere/at/all'), []);
 });
 
-test('the filter keeps a branch when a descendant matches, and matches are case-insensitive', () => {
-  assert.equal(nodeMatches(alpha, 'front DESK'), true, 'a station deep inside');
+test('the filter matches a partner by name, model or kind', () => {
+  assert.equal(nodeMatches(alpha, 'alpha'), true);
+  assert.equal(nodeMatches(alpha, 'model 2a'), true);
   assert.equal(nodeMatches(alpha, 'zeta'), false);
   assert.equal(nodeMatches(alpha, ''), true);
-});
-
-test('the list of every node is complete enough for the command palette', () => {
-  const all = flattenTree(sections);
-  assert.ok(all.some((n) => n.id === `user:u-viewer`));
-  assert.ok(all.some((n) => n.id === 'printer:RPI_B'));
-  assert.ok(all.some((n) => n.href === '/audit'));
-});
-
-test('sections are typed as the navigator expects', () => {
-  const s: TreeSection[] = sections;
-  assert.equal(s.length, 3);
 });
