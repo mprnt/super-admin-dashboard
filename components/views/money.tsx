@@ -9,6 +9,7 @@ import { BarSeries, DataTable, PageHeader, useToast } from '../ui/data';
 import { ConfirmDialog, Modal } from '../ui/dialogs';
 import { Button, Field, Input, KV, Notice, Panel, Pill, Select, Stat } from '../ui/primitives';
 import { Id, RawRecord, StatusPill } from './common';
+import { RevenueByPrinter } from './revenue';
 
 // ---------------------------------------------------------------------------
 // Shared period picker
@@ -164,7 +165,7 @@ export function SessionsView({
             { key: 'job', header: 'Job', cell: (r) => <Id value={r.jobId} /> },
             { key: 'session', header: 'Session', mono: true, cell: (r) => r.sessionCode ?? '—' },
             { key: 'kiosk', header: 'QR point', cell: (r) => <span className="font-mono text-[12px]">{r.kiosk.code}</span> },
-            { key: 'printer', header: 'Printer', cell: (r) => r.printer?.name ?? '—' },
+            { key: 'printer', header: 'Printer', cell: (r) => (r.printer ? r.printer.name ?? r.printer.id : <span className="text-mute" title="This job never reached a printer">Not at a printer</span>) },
             { key: 'status', header: 'Status', cell: (r) => <StatusPill status={r.status} /> },
             { key: 'pay', header: 'Payment', cell: (r) => <StatusPill status={r.paymentStatus} /> },
             { key: 'set', header: 'Settings', cell: (r) => `${r.settings.colorMode} · ${r.settings.printSides} · ×${r.settings.copies}` },
@@ -322,6 +323,10 @@ export function MoneyView({ orgId }: { orgId: string }) {
             ]}
           />
         </Panel>
+      </div>
+
+      <div className="mt-4">
+        <RevenueByPrinter orgId={orgId} period={period} timezone={tz} />
       </div>
 
       <div className="mt-4">

@@ -720,6 +720,8 @@ function EnrollPrinterDialog({
 // One printer: its own page
 // ---------------------------------------------------------------------------
 
+const PERIOD_LABEL: Record<string, string> = { day: 'today', week: 'this week', month: 'this month', year: 'this year' };
+
 export function PrinterDetailView({ orgId, printerId }: { orgId: string; printerId: string }) {
   const ctx = useConsole();
   const toast = useToast();
@@ -731,8 +733,10 @@ export function PrinterDetailView({ orgId, printerId }: { orgId: string; printer
   const printer = ctx.printers.find((p) => p.printerId === printerId);
   const org = ctx.organizations.find((o) => o.id === orgId);
 
-  const summary = useResource<{ summary: Summary }>(`reports/summary${qs({ printerId, period: 'month' })}`);
-  const sessions = useResource<{ total: number; sessions: SessionRow[] }>(`reports/sessions${qs({ printerId, limit: 20, period: 'year' })}`);
+  const [period, setPeriod] = useState('month');
+  const summary = useResource<{ summary: Summary }>(`reports/summary${qs({ printerId, period })}`);
+  const partnerSummary = useResource<{ summary: Summary }>(`reports/summary${qs({ organizationId: orgId, period })}`);
+  const sessions = useResource<{ total: number; sessions: SessionRow[] }>(`reports/sessions${qs({ printerId, limit: 20, period })}`);
 
   if (!ctx.ready) return <Loading label="Loading printer" />;
   if (!printer || printer.organization?.id !== orgId) {
@@ -748,6 +752,9 @@ export function PrinterDetailView({ orgId, printerId }: { orgId: string; printer
 
   const revoked = Boolean(printer.enrollment.revokedAt) || printer.status === 'revoked';
   const s = summary.data?.summary;
+  const partner = partnerSummary.data?.summary;
+  const periodLabel = PERIOD_LABEL[period] ?? 'this period';
+  const sharePct = partner && partner.revenue > 0 && s ? Math.round((s.revenue / partner.revenue) * 1000) / 10 : null;
 
   const refresh = () => {
     ctx.reload();
@@ -808,8 +815,40 @@ export function PrinterDetailView({ orgId, printerId }: { orgId: string; printer
           />
         </Panel>
 
-        <Panel title="This month" hint="Work done by this printer">
-          <div className="grid grid-cols-2 gap-3">
+        <Panel
+          title={`Work ${periodLabel}`}
+          hint="Work done by this printer. Partner revenue includes any paid job that never reached a printer."
+          actions={
+            <select
+              aria-label="Period"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="h-10 rounded-full border border-line bg-bg px-4 text-sm text-ink focus:border-brand-text focus:outline-none"
+            >
+              <option value="day">Today</option>
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="year">This year</option>
+            </select>
+          }
+        >
+          <div className="mb-4 rounded-2xl bg-raised px-4 py-3 text-sm leading-relaxed text-ink">
+            {!s || s.paidJobs === 0 ? (
+              <>This printer took no paid jobs {periodLabel}.</>
+            ) : (
+              <>
+                Earned <span className="font-semibold">{money(s.revenue)}</span>
+                {partner && (
+                  <>
+                    {' '}of <span className="font-semibold">{money(partner.revenue)}</span> at {org?.name ?? 'this partner'}
+                    {sharePct !== null && <> ({sharePct}%)</>}
+                  </>
+                )}
+                .
+              </>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
             <Stat label="Revenue" value={money(s?.revenue)} />
             <Stat label="Paid jobs" value={count(s?.paidJobs)} />
             <Stat label="Printed" value={count(s?.completedJobs)} sub={`${count(s?.failedJobs)} failed`} />
@@ -821,7 +860,7 @@ export function PrinterDetailView({ orgId, printerId }: { orgId: string; printer
       </div>
 
       <div className="mt-4">
-        <Panel title="Recent jobs" hint="The last 20 jobs this printer took, over the last year">
+        <Panel title="Recent jobs" hint={`The last 20 jobs this printer took ${periodLabel}`}>
           {sessions.error && <Notice tone="bad">{sessions.error}</Notice>}
           <SessionTable rows={sessions.data?.sessions ?? []} timeZone={org?.timezone} />
         </Panel>

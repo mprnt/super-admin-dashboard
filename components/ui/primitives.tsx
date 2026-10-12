@@ -101,7 +101,7 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
       <div className="text-xs font-medium text-mute">{label}</div>
       <div
         className={cx(
-          'mt-1.5 break-words text-2xl font-semibold tracking-tight tabular-nums md:text-[28px]',
+          'mt-1.5 whitespace-nowrap text-[22px] font-semibold leading-tight tracking-tight tabular-nums md:text-[26px]',
           tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : 'text-ink'
         )}
       >
@@ -235,7 +235,7 @@ export function ErrorState({ error, onRetry }: { error: string; onRetry?: () => 
 export function Tabs({ items }: { items: { href: string; label: string; active: boolean }[] }) {
   return (
     <nav aria-label="Sections" className="no-scrollbar -mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-      <div className="flex w-max gap-2 py-1 md:w-auto md:flex-wrap">
+      <div className="flex w-max gap-2 py-1">
         {items.map((item) => (
           <Link
             key={item.href}
