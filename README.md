@@ -58,40 +58,31 @@ legibility on a deep green-black ground.
 
 ## What you can see and change
 
-The left side is a **tree**. Every node is a page, and every page has a URL.
+The navigator on the left is **flat**. Each partner is one row, and everything inside a
+partner (overview, business model, staff, QR points, printers, money, sessions, pricing,
+attention, audit) is a tab across the top of that partner's page, so nothing is listed
+twice. A printer or a person is reached from its partner's tabs, or with **⌘K**.
 
 ```
 Platform
   Overview · Business models · Partner comparison · Print queue · Leads
 Partners
-  <Partner>
-    Overview          record, performance, recent changes, edit, suspend, delete
-    Business model    model now, model at registration, the four models, change, history
-    Staff             owners, managers, viewers
-      <Person>        record, activity, permissions, reset password, unlock, remove
-    QR points         the QR points of this partner
-      <QR point>      record, edit, enrol a printer, move to another partner, jobs
-        <Printer>     its own page: record, key, heartbeat, paper, ink, jobs, rotate, revoke
-    Printers          every printer at this partner
-    Money             revenue, volume, by day, by QR point
-    Sessions          jobs: filter, export CSV, open any job
-    Pricing           rates in force per QR point, rate history, publish rates
-    Attention         paid jobs that have not printed, refund
-    Audit             every audited action for this partner
+  <Partner>                       one row each; its pages are its tabs
 Across every partner
-  Printers · Staff and platform accounts · Sessions · Pricing · Attention
-  Audit trail · Permissions · My account
+  Printers · Staff · Sessions · Pricing · Attention · Audit trail · Permissions · My account
 ```
 
-- **Business model.** The model a partner is on *now* is `organizations.business_model`. The
-  model it *registered* with is not stored separately. The backend writes it into
-  the `organization.created` audit entry, and the console reads it from there. Every
-  change is an `organization.model_changed` entry, so the history is complete.
+**Revenue by printer.** A partner's paid revenue is split across its printers on the Money
+page, and the split always adds up to the partner total. A paid job is credited to a printer
+through its print-queue row. A paid job that failed before it was queued has no printer, so it
+is shown on its own row, "Never reached a printer", and not hidden. Each printer page shows its
+share of the partner's revenue for the chosen period.
+
 - **Every record.** Each detail page shows its fields in a readable layout, and a
   **Raw record (JSON)** panel below with the exact payload. If the designed view does
   not show a field, the raw panel does.
-- **Find anything.** `⌘K` / `Ctrl+K` opens a palette over every partner, QR point,
-  printer and person. The tree filter narrows the navigator the same way.
+- **Find anything.** `⌘K` / `Ctrl+K` opens a search over every partner, QR point,
+  printer, person and page. The filter at the top of the navigator narrows the partner list.
 
 ### Changes you can make
 
@@ -220,14 +211,15 @@ app/
     auth/login|logout       sign-in (refuses non-platform) and sign-out
     proxy/[...path]/        the only route to the backend
 components/
-  console/                  Shell (tab bar, More sheet, sidebar), TreeNav, Palette, LoginForm
+  console/                  Shell (header, sidebar, tab bar, More sheet), TreeNav, Palette, LoginForm
   ui/                       primitives, dialogs (bottom sheets, typed confirm, show-once
                             secret), responsive lists, theme switch, icons
   views/                    one component per screen group
 lib/
   gate.ts                   allowlist, query rules, origin and refresh checks (pure)
   csp.ts                    the policy and the nonce (pure)
-  tree.ts                   the navigator, from the four lists (pure)
+  tree.ts                   the navigator and the search index, from the four lists (pure)
+  revenue.ts                revenue split across printers, with the unattributed rest (pure)
   theme.ts                  the theme choice and its storage key (pure)
   format.ts  models.ts  profile.ts  types.ts
   client/                   the browser's API wrapper and the console data provider
