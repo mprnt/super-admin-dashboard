@@ -23,7 +23,6 @@ export function PartnersView() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [model, setModel] = useState('');
-  const [creating, setCreating] = useState(false);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -41,7 +40,7 @@ export function PartnersView() {
       <PageHeader
         title="Partners"
         meta={<span>{count(ctx.organizations.length)} partners on the platform</span>}
-        actions={<Button variant="primary" onClick={() => setCreating(true)}>New partner</Button>}
+        actions={<LinkButton href="/partners/new" variant="primary">New partner</LinkButton>}
       />
 
       <Panel>
@@ -89,98 +88,9 @@ export function PartnersView() {
         />
       </Panel>
 
-      {creating && (
-        <CreatePartnerDialog
-          onClose={() => setCreating(false)}
-          onCreated={(org) => {
-            toast(`Created ${org.name}`);
-            ctx.reload();
-            router.push(`/partners/${org.id}`);
-          }}
-        />
-      )}
     </>
   );
 }
-
-function CreatePartnerDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (org: Organization) => void }) {
-  const [name, setName] = useState('');
-  const [businessModel, setBusinessModel] = useState('');
-  const [timezone, setTimezone] = useState('Asia/Kolkata');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const org = await call<Organization>('POST', 'organizations', {
-        name: name.trim(),
-        businessModel: businessModel || null,
-        timezone: timezone.trim() || 'Asia/Kolkata',
-        contactEmail: contactEmail.trim() || null,
-        contactPhone: contactPhone.trim() || null,
-        notes: notes.trim() || null,
-      });
-      onCreated(org);
-      onClose();
-    } catch (err) {
-      setError(messageOf(err));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title="New partner" wide>
-      <form className="space-y-4" onSubmit={submit}>
-        <Field label="Partner name" hint="The slug is generated from it.">
-          <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={255} autoFocus />
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Business model at registration">
-            <Select value={businessModel} onChange={(e) => setBusinessModel(e.target.value)}>
-              <option value="">Not set yet</option>
-              {BUSINESS_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label} · {m.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Timezone">
-            <Input value={timezone} onChange={(e) => setTimezone(e.target.value)} className="font-mono" maxLength={64} />
-          </Field>
-          <Field label="Contact email">
-            <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} maxLength={255} />
-          </Field>
-          <Field label="Contact phone">
-            <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} maxLength={32} />
-          </Field>
-        </div>
-        <Field label="Notes" hint="Stored with the partner. Not returned by the API afterwards.">
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
-        </Field>
-        {error && <Notice tone="bad">{error}</Notice>}
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={busy || name.trim().length < 2}>
-            {busy ? 'Creating…' : 'Create partner'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Business models across the platform
-// ---------------------------------------------------------------------------
 
 export function BusinessModelsView() {
   const ctx = useConsole();

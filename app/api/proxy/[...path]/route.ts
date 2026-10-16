@@ -11,6 +11,9 @@ import {
 } from '@/lib/server/session';
 import {
   MAX_BODY_BYTES,
+  MAX_UPLOAD_BYTES,
+  checkMultipartBody,
+  isUploadRoute,
   classifyRefreshStatus,
   SESSION_EXPIRED_HEADER,
   checkJsonBody,
@@ -79,9 +82,9 @@ function refuse(status: number, message: string) {
   return NextResponse.json({ message }, { status });
 }
 
-async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
+async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const method = req.method.toUpperCase();
-  const segments = ctx.params.path;
+  const { path: segments } = await ctx.params;
 
   if (!isPlatformRoute(method, segments)) {
     return refuse(404, 'Not found');
@@ -112,21 +115,36 @@ async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
     return refuse(403, 'Cross-origin request refused');
   }
 
-  let rawBody: string | undefined;
+  // A file upload is the one route that may send a multipart form, and only up
+  // to MAX_UPLOAD_BYTES. Everything else is JSON, capped at MAX_BODY_BYTES.
+  let rawBody: string | ArrayBuffer | undefined;
+  let bodyType = 'application/json';
   if (!['GET', 'HEAD'].includes(method)) {
     const declared = Number(req.headers.get('content-length') || '0');
-    if (declared > MAX_BODY_BYTES) return refuse(413, 'Request body too large');
+    if (isUploadRoute(method, segments)) {
+      if (declared > MAX_UPLOAD_BYTES) return refuse(413, 'The file is too large');
+      const contentType = req.headers.get('content-type');
+      const formCheck = checkMultipartBody(contentType);
+      if (!formCheck.ok) return refuse(400, formCheck.reason);
 
-    rawBody = await req.text();
-    const checked = checkJsonBody(req.headers.get('content-type'), rawBody);
-    if (!checked.ok) return refuse(400, checked.reason);
+      rawBody = await req.arrayBuffer();
+      if (rawBody.byteLength > MAX_UPLOAD_BYTES) return refuse(413, 'The file is too large');
+      bodyType = contentType as string;
+    } else {
+      if (declared > MAX_BODY_BYTES) return refuse(413, 'Request body too large');
+
+      const text = await req.text();
+      const checked = checkJsonBody(req.headers.get('content-type'), text);
+      if (!checked.ok) return refuse(400, checked.reason);
+      rawBody = text;
+    }
   }
 
   const call = (token?: string) =>
     fetch(target.toString(), {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': bodyType,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...relayHeaders(req),
       },
@@ -137,7 +155,7 @@ async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
 
   let upstream: Response;
   try {
-    upstream = await call(getAccessToken());
+    upstream = await call(await getAccessToken());
   } catch {
     console.error(`[proxy] Cannot reach the backend at ${API_BASE}`);
     return refuse(503, 'Cannot reach the MPrnt backend. Is it running?');
@@ -147,8 +165,8 @@ async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
   let profile: SessionUser | null = null;
 
   if (upstream.status === 401) {
-    const refreshToken = getRefreshToken();
-    profile = getProfile();
+    const refreshToken = await getRefreshToken();
+    profile = await getProfile();
 
     let outcome: Refresh = { kind: 'rejected' };
     if (refreshToken && profile) {
@@ -194,6 +212,11 @@ async function handle(req: NextRequest, ctx: { params: { path: string[] } }) {
     };
     const disposition = upstream.headers.get('content-disposition');
     if (disposition) headers['content-disposition'] = disposition;
+
+    // A document is for the person who asked for it, and only for them. Nothing may
+    // cache it, and the browser may not guess a type for it.
+    headers['cache-control'] = 'no-store';
+    headers['x-content-type-options'] = 'nosniff';
 
     const res = new NextResponse(bytes, { status: upstream.status, headers });
     if (refreshed && profile) setSessionCookies(res, refreshed, profile);

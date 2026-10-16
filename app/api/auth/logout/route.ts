@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Cross-origin request refused' }, { status: 403 });
   }
 
-  const refreshToken = getRefreshToken();
+  const refreshToken = await getRefreshToken();
   if (refreshToken) {
     await fetch(`${API_BASE}/admin/auth/logout`, {
       method: 'POST',
