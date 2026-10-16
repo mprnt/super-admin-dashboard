@@ -12,6 +12,8 @@ import { ConfirmDialog, Modal } from '../ui/dialogs';
 import { Button, Field, Input, KV, LinkButton, Loading, Notice, Panel, Pill, Stat, Tabs, Textarea, cx } from '../ui/primitives';
 import { ModelPill, OrgPill, RawRecord } from './common';
 import { RevenueSplitPanel } from './split';
+import { BillingPanel } from './billing';
+import { PartnerDocumentsPanel } from './onboarding';
 
 // ---------------------------------------------------------------------------
 // Frame: the header and tabs every partner page shares
@@ -506,6 +508,10 @@ export function PartnerModelView({ orgId }: { orgId: string }) {
           </Button>
         </form>
       </Panel>
+
+      <BillingPanel org={record} />
+
+      <PartnerDocumentsPanel orgId={record.id} timezone={record.timezone} />
 
       <RevenueSplitPanel org={record} />
 

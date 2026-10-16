@@ -1,5 +1,6 @@
 import { SessionsView } from '@/components/views/money';
 
-export default function PartnerSessionsPage({ params }: { params: { orgId: string } }) {
-  return <SessionsView orgId={params.orgId} title="Sessions" />;
+export default async function PartnerSessionsPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const resolved = await params;
+  return <SessionsView orgId={resolved.orgId} title="Sessions" />;
 }

@@ -1,5 +1,6 @@
 import { StaffListView } from '@/components/views/staff';
 
-export default function PartnerStaffPage({ params }: { params: { orgId: string } }) {
-  return <StaffListView orgId={params.orgId} />;
+export default async function PartnerStaffPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const resolved = await params;
+  return <StaffListView orgId={resolved.orgId} />;
 }

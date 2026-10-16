@@ -1,5 +1,6 @@
 import { StaffDetailView } from '@/components/views/staff';
 
-export default function PersonPage({ params }: { params: { orgId: string; userId: string } }) {
-  return <StaffDetailView orgId={params.orgId} userId={params.userId} />;
+export default async function PersonPage({ params }: { params: Promise<{ orgId: string; userId: string }> }) {
+  const resolved = await params;
+  return <StaffDetailView orgId={resolved.orgId} userId={resolved.userId} />;
 }
