@@ -1,5 +1,6 @@
 import { PricingView } from '@/components/views/money';
 
-export default function PartnerPricingPage({ params }: { params: { orgId: string } }) {
-  return <PricingView orgId={params.orgId} />;
+export default async function PartnerPricingPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const resolved = await params;
+  return <PricingView orgId={resolved.orgId} />;
 }
