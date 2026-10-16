@@ -54,16 +54,16 @@ export function clearSessionCookies(res: NextResponse): void {
   }
 }
 
-export function getAccessToken(): string | undefined {
-  return cookies().get(ACCESS_COOKIE)?.value;
+export async function getAccessToken(): Promise<string | undefined> {
+  return (await cookies()).get(ACCESS_COOKIE)?.value;
 }
 
-export function getRefreshToken(): string | undefined {
-  return cookies().get(REFRESH_COOKIE)?.value;
+export async function getRefreshToken(): Promise<string | undefined> {
+  return (await cookies()).get(REFRESH_COOKIE)?.value;
 }
 
-export function getProfile(): SessionUser | null {
-  return parseProfile(cookies().get(PROFILE_COOKIE)?.value);
+export async function getProfile(): Promise<SessionUser | null> {
+  return parseProfile((await cookies()).get(PROFILE_COOKIE)?.value);
 }
 
 /** Headers that tell the backend the real operator IP, behind this server. */

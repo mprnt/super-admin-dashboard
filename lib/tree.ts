@@ -71,6 +71,7 @@ const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompar
 const PLATFORM_PAGES: TreeNode[] = [
   { id: 'overview', label: 'Overview', href: '/', kind: 'Page' },
   { id: 'models', label: 'Business models', href: '/business-models', kind: 'Page' },
+  { id: 'billing', label: 'Billing', href: '/billing', kind: 'Page' },
   { id: 'reports', label: 'Partner comparison', href: '/reports', kind: 'Page' },
   { id: 'queue', label: 'Print queue', href: '/queue', kind: 'Page' },
   { id: 'leads', label: 'Leads', href: '/leads', kind: 'Page' },

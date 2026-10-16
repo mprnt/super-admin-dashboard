@@ -341,3 +341,153 @@ export interface SplitSummary {
   platformRevenue: number;
   unsplitRevenue: number;
 }
+
+// ---------------------------------------------------------------------------
+// Model 1 billing (hardware sale and monthly software)
+// ---------------------------------------------------------------------------
+
+export type BillingPhase =
+  | 'awaiting_hardware'
+  | 'not_live'
+  | 'free'
+  | 'active'
+  | 'payment_due'
+  | 'overdue';
+
+export type BillingPaymentMethod = 'bank_transfer' | 'upi' | 'cash' | 'cheque' | 'other';
+
+export interface BillingInvoice {
+  id: string;
+  kind: 'hardware' | 'software';
+  label: string;
+  periodStart: string;
+  periodEnd: string;
+  amount: number;
+  dueOn: string;
+  status: 'due' | 'overdue' | 'paid' | 'waived';
+  paidOn: string | null;
+  paymentMethod?: BillingPaymentMethod | null;
+  paymentReference?: string | null;
+  settleNote?: string | null;
+  settledByEmail?: string | null;
+}
+
+export interface BillingNextPayment {
+  amount: number;
+  dueOn: string;
+  periodIndex?: number | null;
+  kind: 'hardware' | 'software';
+}
+
+export interface BillingContract {
+  phase: BillingPhase;
+  goLiveOn: string | null;
+  freeUntil: string | null;
+  paidThrough: string | null;
+  nextPayment: BillingNextPayment | null;
+  invoices: BillingInvoice[];
+  terms: { hardwarePrice: number; monthlyPrice: number; freeMonths: number; graceDays?: number };
+  soldOn: string;
+  saleNote?: string | null;
+  goLiveNote?: string | null;
+  soldByEmail?: string | null;
+  goLiveByEmail?: string | null;
+}
+
+export interface BillingPlan {
+  id: string;
+  hardwarePrice: number;
+  monthlyPrice: number;
+  freeMonths: number;
+  graceDays: number;
+  effectiveFrom: string;
+  note: string;
+  createdByEmail: string | null;
+  createdAt: string;
+}
+
+export interface BillingPortfolioRow {
+  organizationId: string;
+  organizationName: string;
+  phase: BillingPhase;
+  hardwareStatus: string;
+  hardwarePrice: number;
+  goLiveOn: string | null;
+  freeUntil: string | null;
+  paidThrough: string | null;
+  nextPayment: BillingNextPayment | null;
+  overdueCount: number;
+  overdueAmount: number;
+  soldOn: string;
+  monthlyPrice: number;
+}
+
+// ---------------------------------------------------------------------------
+// Partner onboarding (the wizard)
+// ---------------------------------------------------------------------------
+
+export type OnboardingBusinessType =
+  | 'stationery'
+  | 'cyber_cafe'
+  | 'photocopy'
+  | 'college'
+  | 'library'
+  | 'office'
+  | 'other';
+
+export interface OnboardingPayload {
+  business?: {
+    legalName?: string;
+    tradingName?: string;
+    businessType?: OnboardingBusinessType | '';
+    addressLine1?: string;
+    addressLine2?: string | null;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    contactName?: string;
+    contactPhone?: string;
+    billingEmail?: string;
+    gstRegistered?: boolean | null;
+    gstNumber?: string | null;
+    pan?: string | null;
+    notes?: string | null;
+  };
+  model?: { businessModel?: string };
+  terms?: { partnerSharePct?: number | null; startsOn?: string | null; note?: string };
+  qrPoint?: { code?: string; name?: string; location?: string; paperSizes?: string[] } | null;
+  owner?: { fullName?: string; email?: string; phone?: string | null };
+}
+
+export interface OnboardingProblem {
+  field: string;
+  message: string;
+}
+
+export interface OnboardingDocument {
+  id: string;
+  kind: 'gst_certificate' | 'agreement' | 'other';
+  originalFilename: string;
+  sizeBytes: number;
+  uploadedAt: string;
+}
+
+export interface OnboardingDraft {
+  id: string;
+  status: 'open' | 'completed' | 'expired';
+  version: number;
+  expiresAt: string;
+  payload: OnboardingPayload;
+  documents: OnboardingDocument[];
+  problems: OnboardingProblem[];
+  conflicts: OnboardingProblem[];
+}
+
+export interface OnboardingResult {
+  organizationId: string;
+  slug: string;
+  owner: { id: string; email: string; temporaryPassword: string };
+  qrPoint: { id: string; code: string } | null;
+  documents: number;
+  nextSteps: string[];
+}

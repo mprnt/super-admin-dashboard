@@ -47,6 +47,25 @@ export async function call<T = unknown>(method: string, path: string, body?: unk
     cache: 'no-store',
   });
 
+  return readResponse<T>(res);
+}
+
+/**
+ * Sends a file as a form. The browser sets the multipart boundary itself, so no
+ * Content-Type header is passed; the proxy forwards the one the browser chose.
+ */
+export async function upload<T = unknown>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api/proxy/${path}`, {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+
+  return readResponse<T>(res);
+}
+
+async function readResponse<T>(res: Response): Promise<T> {
   const json = (await res.json().catch(() => ({}))) as {
     data?: T;
     message?: string;

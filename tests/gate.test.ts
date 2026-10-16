@@ -7,6 +7,9 @@ import {
   createSingleFlight,
   isCrossSiteRequest,
   isPlatformRoute,
+  isUploadRoute,
+  checkMultipartBody,
+  MAX_UPLOAD_BYTES,
   isSameOriginRequest,
   isUnsafeMethod,
   resolvePlatformUrl,
@@ -23,7 +26,6 @@ const decode = (p: string) => p.split('/').map(decodeURIComponent);
 test('the route allowlist admits what the console calls', () => {
   const allowed: [string, string[]][] = [
     ['GET', ['organizations']],
-    ['POST', ['organizations']],
     ['GET', ['organizations', ORG]],
     ['PATCH', ['organizations', ORG]],
     ['DELETE', ['organizations', ORG]],
@@ -38,6 +40,13 @@ test('the route allowlist admits what the console calls', () => {
     ['GET', ['revenue-split']],
     ['GET', ['revenue-split', 'summary']],
     ['POST', ['revenue-split']],
+    ['GET', ['billing', 'contract']],
+    ['POST', ['billing', 'contract']],
+    ['POST', ['billing', 'contract', 'go-live']],
+    ['POST', ['billing', 'charges', ORG, 'settle']],
+    ['GET', ['billing', 'contracts']],
+    ['GET', ['billing', 'plans']],
+    ['POST', ['billing', 'plans']],
     ['GET', ['reports', 'sessions', 'export']],
     ['GET', ['auth', 'me']],
     ['POST', ['auth', 'change-password']],
@@ -63,10 +72,17 @@ test('the allowlist refuses everything else, including shop-only and auth routes
     ['DELETE', ['users', USER, 'permissions']], // PUT is the only write
     ['GET', ['queue', 'status', 'extra']],
     ['GET', ['unknown']],
+    ['POST', ['organizations']], // partners are created through the onboarding wizard only
     ['DELETE', ['revenue-split']], // a term is never removed; the history is append-only
     ['PATCH', ['revenue-split']], // ...nor edited
     ['PUT', ['revenue-split']],
     ['POST', ['revenue-split', 'summary']], // the summary is read-only
+    ['DELETE', ['billing', 'contract']], // a contract is never removed
+    ['PATCH', ['billing', 'plans']], // a published price is never edited
+    ['DELETE', ['billing', 'plans']],
+    ['DELETE', ['billing', 'charges', ORG, 'settle']], // a charge is waived, never deleted
+    ['GET', ['billing', 'charges', ORG, 'settle']], // settling is POST only
+    ['PUT', ['billing', 'contract']],
     ['GET', []],
   ];
   for (const [method, segments] of refused) {
@@ -233,4 +249,45 @@ test('a cross-site browser request is refused; same-site, none and absent are no
 test('only a refused refresh token ends the session; a busy backend does not', () => {
   for (const status of [400, 401, 403]) assert.equal(classifyRefreshStatus(status), 'rejected', String(status));
   for (const status of [429, 500, 502, 503, 504]) assert.equal(classifyRefreshStatus(status), 'unavailable', String(status));
+});
+
+test('the onboarding routes are reachable, and the upload path is the only multipart one', () => {
+  const ID = '6f1a2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+  const admitted: [string, string[]][] = [
+    ['POST', ['onboarding', 'drafts']],
+    ['GET', ['onboarding', 'drafts', ID]],
+    ['PUT', ['onboarding', 'drafts', ID]],
+    ['POST', ['onboarding', 'drafts', ID, 'documents']],
+    ['DELETE', ['onboarding', 'drafts', ID, 'documents', ID]],
+    ['POST', ['onboarding', 'drafts', ID, 'complete']],
+    ['GET', ['organizations', ID, 'documents']],
+    ['GET', ['organizations', ID, 'documents', ID, 'download']],
+  ];
+  for (const [m, segs] of admitted) assert.ok(isPlatformRoute(m, segs), `${m} ${segs.join('/')} should be allowed`);
+
+  const refused: [string, string[]][] = [
+    ['DELETE', ['onboarding', 'drafts', ID]],
+    ['PATCH', ['onboarding', 'drafts', ID]],
+    ['GET', ['onboarding', 'drafts', ID, 'complete']],
+    ['POST', ['organizations', ID, 'documents']],
+    ['DELETE', ['organizations', ID, 'documents', ID, 'download']],
+    ['POST', ['onboarding', 'drafts', 'not-a-uuid', 'complete']],
+  ];
+  for (const [m, segs] of refused) assert.equal(isPlatformRoute(m, segs), false, `${m} ${segs.join('/')} must be refused`);
+
+  // Only the document upload may carry a form. A form to any other route is not an upload.
+  assert.equal(isUploadRoute('POST', ['onboarding', 'drafts', ID, 'documents']), true);
+  assert.equal(isUploadRoute('POST', ['onboarding', 'drafts']), false);
+  assert.equal(isUploadRoute('PUT', ['onboarding', 'drafts', ID, 'documents']), false);
+  assert.equal(isUploadRoute('POST', ['billing', 'plans']), false);
+});
+
+test('a multipart body must name its boundary, and only a form is accepted', () => {
+  assert.equal(checkMultipartBody('multipart/form-data; boundary=----WebKitFormBoundaryABC123').ok, true);
+  assert.equal(checkMultipartBody('multipart/form-data; boundary="quoted-boundary"').ok, true);
+  assert.equal(checkMultipartBody('multipart/form-data').ok, false);
+  assert.equal(checkMultipartBody('application/json').ok, false);
+  assert.equal(checkMultipartBody(null).ok, false);
+  assert.ok(MAX_UPLOAD_BYTES >= 5 * 1024 * 1024, 'room for a 5 MB document');
+  assert.ok(MAX_UPLOAD_BYTES <= 8 * 1024 * 1024, 'and no more than that');
 });

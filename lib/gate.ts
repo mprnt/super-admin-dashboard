@@ -33,7 +33,8 @@ export const PLATFORM_ROUTES: ReadonlyArray<readonly [Method, Template]> = [
 
   // Partners (organizations)
   ['GET', 'organizations'],
-  ['POST', 'organizations'],
+  // Creating a partner goes through the onboarding wizard only. The old single-form
+  // route skipped the GST, address and owner checks, so the console no longer sends it.
   ['GET', 'organizations/:uuid'],
   ['PATCH', 'organizations/:uuid'],
   ['DELETE', 'organizations/:uuid'],
@@ -86,6 +87,26 @@ export const PLATFORM_ROUTES: ReadonlyArray<readonly [Method, Template]> = [
   ['GET', 'revenue-split/summary'],
   ['POST', 'revenue-split'],
 
+  // Model 1 billing: hardware sales and the monthly software subscription.
+  // Writes are platform-only; the API checks the caller as well.
+  ['GET', 'billing/contract'],
+  ['POST', 'billing/contract'],
+  ['POST', 'billing/contract/go-live'],
+  ['POST', 'billing/charges/:uuid/settle'],
+  ['GET', 'billing/contracts'],
+  ['GET', 'billing/plans'],
+  ['POST', 'billing/plans'],
+
+  // Partner onboarding: the wizard's drafts, its documents, and a partner's documents
+  ['POST', 'onboarding/drafts'],
+  ['GET', 'onboarding/drafts/:uuid'],
+  ['PUT', 'onboarding/drafts/:uuid'],
+  ['POST', 'onboarding/drafts/:uuid/documents'],
+  ['DELETE', 'onboarding/drafts/:uuid/documents/:uuid'],
+  ['POST', 'onboarding/drafts/:uuid/complete'],
+  ['GET', 'organizations/:uuid/documents'],
+  ['GET', 'organizations/:uuid/documents/:uuid/download'],
+
   // Audit and leads
   ['GET', 'audit'],
   ['GET', 'audit/actions'],
@@ -98,16 +119,44 @@ function segmentMatches(part: string, value: string): boolean {
   return part === value;
 }
 
-/** Whether this method + path (segments after `admin`, already decoded) is a platform route. */
-export function isPlatformRoute(method: string, segments: string[]): boolean {
+function matchesAny(routes: ReadonlyArray<readonly [Method, Template]>, method: string, segments: string[]): boolean {
   const verb = method.toUpperCase();
-
-  return PLATFORM_ROUTES.some(([routeVerb, template]) => {
+  return routes.some(([routeVerb, template]) => {
     if (routeVerb !== verb) return false;
     const parts = template.split('/');
     if (parts.length !== segments.length) return false;
     return parts.every((part, i) => segmentMatches(part, segments[i] ?? ''));
   });
+}
+
+/**
+ * Routes that take a file. Only these may carry a multipart body, and only up to
+ * MAX_UPLOAD_BYTES. Every other write is JSON, capped at MAX_BODY_BYTES.
+ */
+export const UPLOAD_ROUTES: ReadonlyArray<readonly [Method, Template]> = [
+  ['POST', 'onboarding/drafts/:uuid/documents'],
+];
+
+/** The most a single upload may send: a 5 MB document plus its multipart envelope. */
+export const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
+
+export function isUploadRoute(method: string, segments: string[]): boolean {
+  return matchesAny(UPLOAD_ROUTES, method, segments);
+}
+
+/** A multipart body must declare its boundary, or the server cannot read it. */
+export function checkMultipartBody(contentType: string | null): { ok: true } | { ok: false; reason: string } {
+  if (!contentType || !contentType.toLowerCase().startsWith('multipart/form-data')) {
+    return { ok: false, reason: 'Upload must be sent as a form' };
+  }
+  const boundary = /boundary=("?)([A-Za-z0-9'()+_,\-./:=? ]{1,70})\1(?:;|$)/i.exec(contentType);
+  if (!boundary) return { ok: false, reason: 'Upload is missing its form boundary' };
+  return { ok: true };
+}
+
+/** Whether this method + path (segments after `admin`, already decoded) is a platform route. */
+export function isPlatformRoute(method: string, segments: string[]): boolean {
+  return matchesAny(PLATFORM_ROUTES, method, segments);
 }
 
 /**
