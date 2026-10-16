@@ -1,5 +1,6 @@
 import { MoneyView } from '@/components/views/money';
 
-export default function PartnerMoneyPage({ params }: { params: { orgId: string } }) {
-  return <MoneyView orgId={params.orgId} />;
+export default async function PartnerMoneyPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const resolved = await params;
+  return <MoneyView orgId={resolved.orgId} />;
 }
