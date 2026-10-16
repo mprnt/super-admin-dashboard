@@ -1,5 +1,6 @@
 import { QrPointsView } from '@/components/views/fleet';
 
-export default function PartnerQrPointsPage({ params }: { params: { orgId: string } }) {
-  return <QrPointsView orgId={params.orgId} />;
+export default async function PartnerQrPointsPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const resolved = await params;
+  return <QrPointsView orgId={resolved.orgId} />;
 }

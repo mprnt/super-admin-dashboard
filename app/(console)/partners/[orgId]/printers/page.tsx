@@ -1,5 +1,6 @@
 import { PrintersView } from '@/components/views/fleet';
 
-export default function PartnerPrintersPage({ params }: { params: { orgId: string } }) {
-  return <PrintersView orgId={params.orgId} />;
+export default async function PartnerPrintersPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const resolved = await params;
+  return <PrintersView orgId={resolved.orgId} />;
 }
