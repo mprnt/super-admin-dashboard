@@ -23,6 +23,7 @@ import type { OnboardingDraft, OnboardingPayload, OnboardingResult } from '../..
 import { useToast } from '../ui/data';
 import { ConfirmDialog } from '../ui/dialogs';
 import { Button, Field, Input, Loading, Notice, Panel, Pill, Select, Textarea, cx } from '../ui/primitives';
+import { QrStandPreview } from './qr-stand';
 
 const MODELS = [
   {
@@ -487,6 +488,11 @@ export function NewPartnerWizard() {
                     ))}
                   </div>
                 </fieldset>
+                {answers.qrPoint && !checkQrPoint(answers.qrPoint).code && (
+                  <div className="border-t border-line pt-5 md:col-span-2">
+                    <QrStandPreview code={answers.qrPoint.code ?? ''} partner={answers.business?.tradingName ?? ''} />
+                  </div>
+                )}
               </div>
             )}
           </div>
