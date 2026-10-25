@@ -77,7 +77,7 @@ export function relayHeaders(req: Request): Record<string, string> {
     '';
 
   return {
-    'X-MPrnt-Proxy-Secret': secret,
-    ...(ip ? { 'X-MPrnt-Client-IP': ip } : {}),
+    'X-MPRNT-Proxy-Secret': secret,
+    ...(ip ? { 'X-MPRNT-Client-IP': ip } : {}),
   };
 }

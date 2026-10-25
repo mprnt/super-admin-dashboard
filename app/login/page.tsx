@@ -1,18 +1,13 @@
 import { Suspense } from 'react';
 import { LoginForm } from '@/components/console/LoginForm';
-import { Icons } from '@/components/ui/icons';
+import { MprntLogo } from '@/components/MprntLogo';
 
 export default function LoginPage() {
   return (
     <main className="flex min-h-[100dvh] flex-col">
       <section className="safe-bottom flex flex-col justify-end rounded-b-[36px] bg-brand px-6 pb-14 pt-[max(env(safe-area-inset-top),3.5rem)] text-brand-ink md:px-12 md:pb-14">
         <div className="mx-auto w-full max-w-md">
-          <span aria-hidden className="mb-8 grid h-14 w-14 place-items-center rounded-3xl bg-white/15">
-            <span className="block h-7 w-7">
-              <Icons.printer />
-            </span>
-          </span>
-          <p className="text-sm font-medium text-brand-ink/75">MPrnt</p>
+          <MprntLogo variant="full" className="mb-8 h-24 w-auto text-brand-ink" />
           <h1 className="mt-1 text-[34px] font-semibold leading-[1.1] tracking-tight md:text-4xl">Platform console</h1>
           <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-brand-ink/80">Partners, printers and money, in one place. For platform operators only.</p>
         </div>

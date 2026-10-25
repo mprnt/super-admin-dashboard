@@ -103,7 +103,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
   return (
     <Panel
       title="Revenue split"
-      hint="What the partner keeps of each paid sale; MPrnt keeps the rest. Each sale is split at the rate in force when it was paid, so a change never moves money already earned."
+      hint="What the partner keeps of each paid sale; MPRNT keeps the rest. Each sale is split at the rate in force when it was paid, so a change never moves money already earned."
     >
       {!data.applies ? (
         <Notice tone="warn">
@@ -122,7 +122,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
                     {pct(data.partnerDefault.partnerSharePct)} <span className="text-sm text-mute">partner</span>
                   </p>
                   <p className="mt-1 text-sm text-mute">
-                    MPrnt keeps {pct(data.partnerDefault.platformSharePct)} · in force since{' '}
+                    MPRNT keeps {pct(data.partnerDefault.platformSharePct)} · in force since{' '}
                     {dateTime(data.partnerDefault.effectiveFrom, org.timezone)}
                   </p>
                 </>
@@ -152,7 +152,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   <Stat label="Collected" value={money(summary.data.grossRevenue)} />
                   <Stat label="Partner keeps" value={money(summary.data.partnerRevenue)} />
-                  <Stat label="MPrnt keeps" value={money(summary.data.platformRevenue)} />
+                  <Stat label="MPRNT keeps" value={money(summary.data.platformRevenue)} />
                   <Stat
                     label="Not split"
                     value={money(summary.data.unsplitRevenue)}
@@ -174,7 +174,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
             columns={[
               { key: 'qr', header: 'QR point', cell: (k) => k.kioskName },
               { key: 'partner', header: 'Partner', cell: (k) => pct(k.partnerSharePct) },
-              { key: 'mprnt', header: 'MPrnt', cell: (k) => pct(k.platformSharePct) },
+              { key: 'mprnt', header: 'MPRNT', cell: (k) => pct(k.platformSharePct) },
               {
                 key: 'source',
                 header: 'Set by',
@@ -214,7 +214,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
               <Field
                 label="Partner keeps (%)"
                 hint={
-                  shareValid ? `MPrnt keeps ${pct(100 - shareNum)} of each sale` : 'A number from 0 to 100, up to two decimals'
+                  shareValid ? `MPRNT keeps ${pct(100 - shareNum)} of each sale` : 'A number from 0 to 100, up to two decimals'
                 }
                 error={shareText !== '' && !shareValid ? 'Enter a percentage from 0 to 100' : null}
               >
@@ -282,7 +282,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
               },
               {
                 key: 'split',
-                header: 'Partner / MPrnt',
+                header: 'Partner / MPRNT',
                 cell: (t) => `${pct(t.partnerSharePct)} / ${pct(t.platformSharePct)}`,
               },
               { key: 'starts', header: 'Starts', cell: (t) => dateTime(t.effectiveFrom, org.timezone) },
@@ -307,7 +307,7 @@ export function RevenueSplitPanel({ org }: { org: Organization }) {
         confirmLabel="Set split"
         body={
           <>
-            {org.name} keeps <strong className="text-ink">{pct(shareNum)}</strong> and MPrnt keeps{' '}
+            {org.name} keeps <strong className="text-ink">{pct(shareNum)}</strong> and MPRNT keeps{' '}
             <strong className="text-ink">{pct(100 - shareNum)}</strong> of each paid sale, for{' '}
             <strong className="text-ink">{scopeLabel}</strong>, {startLabel}. Sales already paid keep the rate they were
             paid under. This is recorded in the audit trail.

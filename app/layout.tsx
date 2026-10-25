@@ -8,12 +8,12 @@ import { THEME_STORAGE_KEY } from '@/lib/theme';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'MPrnt Platform',
+  title: 'MPRNT Platform',
   description: 'Platform operators only.',
   // Never indexed, never previewed by a link unfurler that would fetch it.
   robots: { index: false, follow: false, nocache: true, noarchive: true },
-  applicationName: 'MPrnt Platform',
-  appleWebApp: { capable: true, title: 'MPrnt Platform', statusBarStyle: 'default' },
+  applicationName: 'MPRNT Platform',
+  appleWebApp: { capable: true, title: 'MPRNT Platform', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

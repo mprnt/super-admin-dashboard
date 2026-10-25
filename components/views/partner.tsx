@@ -172,7 +172,7 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
               { label: 'QR points', value: `${kiosks.length} (${kiosks.filter((k) => k.status === 'active').length} active)` },
               { label: 'Printers', value: `${printers.length}` },
               { label: 'Online or busy', value: `${online}` },
-              { label: 'Stations (MPrnt-supplied)', value: `${stations}` },
+              { label: 'Stations (MPRNT-supplied)', value: `${stations}` },
               { label: 'Revoked', value: `${revoked}` },
               { label: 'Staff accounts', value: `${staff.length} not removed` },
             ]}
@@ -449,7 +449,7 @@ export function PartnerModelView({ orgId }: { orgId: string }) {
         <Panel title="Fleet by family" hint="Printers this partner has, split by who supplied the hardware">
           <dl className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-line px-3 py-2">
-              <dt className="text-[11px] uppercase tracking-wider text-mute">MPrnt station</dt>
+              <dt className="text-[11px] uppercase tracking-wider text-mute">MPRNT station</dt>
               <dd className="font-mono text-2xl text-ink">{stations}</dd>
             </div>
             <div className="rounded-2xl border border-line px-3 py-2">

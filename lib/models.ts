@@ -21,7 +21,7 @@ export interface BusinessModel {
   short: string;
   name: string;
   family: 'Printer Integration' | 'MPRNT Station';
-  /** What the partner supplies and what MPrnt supplies, in one line. */
+  /** What the partner supplies and what MPRNT supplies, in one line. */
   summary: string;
 }
 
@@ -32,7 +32,7 @@ export const BUSINESS_MODELS: readonly BusinessModel[] = [
     short: 'Model 1',
     name: 'Printer Integration',
     family: 'Printer Integration',
-    summary: 'The partner connects a printer it already owns. MPrnt supplies the software.',
+    summary: 'The partner connects a printer it already owns. MPRNT supplies the software.',
   },
   {
     id: 'revenue-share',
@@ -40,7 +40,7 @@ export const BUSINESS_MODELS: readonly BusinessModel[] = [
     short: 'Model 2A',
     name: 'Station · Revenue Share',
     family: 'MPRNT Station',
-    summary: 'An MPrnt station is placed with the partner, and revenue is shared.',
+    summary: 'An MPRNT station is placed with the partner, and revenue is shared.',
   },
   {
     id: 'own-station',
@@ -56,7 +56,7 @@ export const BUSINESS_MODELS: readonly BusinessModel[] = [
     short: 'Model 3',
     name: 'Station · Full Purchase & Support',
     family: 'MPRNT Station',
-    summary: 'The partner buys the station outright and MPrnt provides support.',
+    summary: 'The partner buys the station outright and MPRNT provides support.',
   },
 ];
 

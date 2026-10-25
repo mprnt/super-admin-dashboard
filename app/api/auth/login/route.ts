@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   } catch {
     console.error(`[auth] Cannot reach the backend at ${API_BASE}`);
     return NextResponse.json(
-      { message: 'Cannot reach the MPrnt backend. Check that it is running and that MPRNT_API_URL points at it.' },
+      { message: 'Cannot reach the MPRNT backend. Check that it is running and that MPRNT_API_URL points at it.' },
       { status: 503 }
     );
   }

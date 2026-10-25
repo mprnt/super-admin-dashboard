@@ -689,10 +689,10 @@ function EnrollPrinterDialog({
           </div>
         </div>
         <fieldset className="rounded-2xl border border-line p-3">
-          <legend className="px-1 text-xs text-mute">MPrnt station</legend>
+          <legend className="px-1 text-xs text-mute">MPRNT station</legend>
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" className="h-4 w-4 accent-brand" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
-            This printer is in an MPrnt station
+            This printer is in an MPRNT station
           </label>
           {isStation && (
             <div className="mt-3">
@@ -978,7 +978,7 @@ function EditPrinterDialog({ printer, onClose, onSaved }: { printer: Printer; on
         </Field>
         <label className="flex items-center gap-2 text-sm text-ink">
           <input type="checkbox" className="h-4 w-4 accent-brand" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
-          This printer is in an MPrnt station
+          This printer is in an MPRNT station
         </label>
         {isStation && (
           <Field label="Station name" hint="Optional. Cleared when the printer is not a station.">

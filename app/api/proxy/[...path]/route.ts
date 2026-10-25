@@ -158,7 +158,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     upstream = await call(await getAccessToken());
   } catch {
     console.error(`[proxy] Cannot reach the backend at ${API_BASE}`);
-    return refuse(503, 'Cannot reach the MPrnt backend. Is it running?');
+    return refuse(503, 'Cannot reach the MPRNT backend. Is it running?');
   }
 
   let refreshed: Tokens | null = null;
@@ -177,7 +177,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
 
     if (outcome.kind === 'unavailable') {
       // The session may well be fine: keep the cookies and ask the operator to retry.
-      return refuse(503, 'The MPrnt backend is busy. Try again in a moment.');
+      return refuse(503, 'The MPRNT backend is busy. Try again in a moment.');
     }
 
     if (outcome.kind === 'rejected' || !profile) {
@@ -196,7 +196,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     } catch {
       // The refresh already spent the old refresh token: the new pair must still
       // reach the browser, even though this replay failed.
-      const res = refuse(503, 'Cannot reach the MPrnt backend. Is it running?');
+      const res = refuse(503, 'Cannot reach the MPRNT backend. Is it running?');
       setSessionCookies(res, refreshed, profile);
       return res;
     }

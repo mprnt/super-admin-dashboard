@@ -11,6 +11,7 @@ import { ThemeSwitch } from '../ui/theme';
 import { Button, ErrorState, cx } from '../ui/primitives';
 import { Modal } from '../ui/dialogs';
 import { Icons } from '../ui/icons';
+import { MprntLogo } from '../MprntLogo';
 import { TreeNav } from './TreeNav';
 import { Palette } from './Palette';
 
@@ -104,11 +105,9 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-md">
         <div className="flex h-16 items-center gap-3 px-4 md:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-3 rounded-2xl pr-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text">
-            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-brand text-brand-ink">
-              <Icons.printer />
-            </span>
+            <MprntLogo variant="mark" className="h-9 w-auto shrink-0 text-brand-text" aria-hidden />
             <span className="min-w-0 leading-tight">
-              <span className="block text-[15px] font-semibold tracking-tight">MPrnt</span>
+              <MprntLogo variant="wordmark" title="MPRNT" className="block h-4 w-auto text-brand-text" />
               <span className="block truncate text-xs text-mute">Platform console</span>
             </span>
           </Link>
