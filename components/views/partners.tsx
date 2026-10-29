@@ -4,13 +4,12 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, type FormEvent } from 'react';
 import { call, messageOf, qs } from '../../lib/client/api';
 import { useConsole, useResource } from '../../lib/client/console';
-import { BUSINESS_MODELS, type BusinessModelId } from '../../lib/models';
 import { count, dateTime, money, percent, shortDate } from '../../lib/format';
 import type { OrgComparison, Organization } from '../../lib/types';
 import { DataTable, PageHeader, useToast } from '../ui/data';
 import { Modal } from '../ui/dialogs';
 import { Button, Field, Input, LinkButton, Notice, Panel, Pill, Select, Stat, Textarea } from '../ui/primitives';
-import { ModelPill, OrgPill, RawRecord, orgTone } from './common';
+import { OrgPill, RawRecord, orgTone } from './common';
 
 // ---------------------------------------------------------------------------
 // Partner directory
@@ -22,16 +21,14 @@ export function PartnersView() {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
-  const [model, setModel] = useState('');
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return ctx.organizations
       .filter((o) => !status || o.status === status)
-      .filter((o) => !model || (model === 'none' ? !o.businessModel : o.businessModel === model))
       .filter((o) => !needle || `${o.name} ${o.slug} ${o.id} ${o.contactEmail ?? ''}`.toLowerCase().includes(needle))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [ctx.organizations, q, status, model]);
+  }, [ctx.organizations, q, status]);
 
   const printersFor = (orgId: string) => ctx.printers.filter((p) => p.organization?.id === orgId).length;
 
@@ -44,7 +41,7 @@ export function PartnersView() {
       />
 
       <Panel>
-        <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_220px]">
+        <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
           <Field label="Search">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, slug, email or ID" type="search" />
           </Field>
@@ -55,30 +52,18 @@ export function PartnersView() {
               <option value="suspended">Suspended</option>
             </Select>
           </Field>
-          <Field label="Business model">
-            <Select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option value="">All</option>
-              {BUSINESS_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label} · {m.name}
-                </option>
-              ))}
-              <option value="none">Not recorded</option>
-            </Select>
-          </Field>
         </div>
 
         <DataTable
           caption="Partners"
           rows={rows}
           rowKey={(o) => o.id}
-          empty={q || status || model ? 'No partner matches these filters' : 'No partners yet'}
+          empty={q || status ? 'No partner matches these filters' : 'No partners yet'}
           rowHref={(o) => `/partners/${o.id}`}
           columns={[
             { key: 'name', header: 'Partner', cell: (o) => o.name },
             { key: 'slug', header: 'Slug', mono: true, cell: (o) => o.slug },
             { key: 'status', header: 'Status', cell: (o) => <OrgPill org={o} /> },
-            { key: 'model', header: 'Model', cell: (o) => <ModelPill id={o.businessModel} /> },
             { key: 'qr', header: 'QR points', align: 'right', cell: (o) => count(o.kioskCount ?? 0) },
             { key: 'printers', header: 'Printers', align: 'right', cell: (o) => count(printersFor(o.id)) },
             { key: 'staff', header: 'Staff', align: 'right', cell: (o) => count(o.adminCount ?? 0) },
@@ -88,61 +73,6 @@ export function PartnersView() {
         />
       </Panel>
 
-    </>
-  );
-}
-
-export function BusinessModelsView() {
-  const ctx = useConsole();
-  const orgs = ctx.organizations;
-
-  const groups: { id: BusinessModelId | null; label: string; name: string; summary: string; partners: Organization[] }[] = [
-    ...BUSINESS_MODELS.map((m) => ({ id: m.id, label: m.label, name: m.name, summary: m.summary, partners: orgs.filter((o) => o.businessModel === m.id) })),
-    {
-      id: null,
-      label: 'Not recorded',
-      name: 'No model on file',
-      summary: 'Partners created before the model was recorded. Set one on the partner\'s Business model page.',
-      partners: orgs.filter((o) => !o.businessModel),
-    },
-  ];
-
-  return (
-    <>
-      <PageHeader title="Business models" meta={<span>Who is on which commercial model, across the platform</span>} />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {groups.map((g) => (
-          <Panel
-            key={g.id ?? 'none'}
-            title={
-              <span className="flex items-center gap-2">
-                {g.label}
-                <span className="text-mute font-normal">· {g.name}</span>
-              </span>
-            }
-            hint={g.summary}
-            actions={<span className="font-mono text-lg text-ink">{g.partners.length}</span>}
-          >
-            {g.partners.length === 0 ? (
-              <p className="text-sm text-mute">No partners on this model.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {g.partners.map((o) => (
-                  <li key={o.id} className="flex items-center justify-between gap-3 py-2">
-                    <LinkButton href={`/partners/${o.id}/model`} size="sm" variant="ghost">
-                      {o.name}
-                    </LinkButton>
-                    <Pill tone={orgTone(o.status)} dot>
-                      {o.status}
-                    </Pill>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-        ))}
-      </div>
     </>
   );
 }
@@ -209,7 +139,6 @@ export function ReportsView() {
           columns={[
             { key: 'name', header: 'Partner', cell: (r) => r.organization.name },
             { key: 'status', header: 'Status', cell: (r) => <OrgPill org={r.organization} /> },
-            { key: 'model', header: 'Model', cell: (r) => <ModelPill id={r.organization.businessModel} /> },
             {
               key: 'activity',
               header: 'Activity',

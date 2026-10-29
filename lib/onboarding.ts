@@ -68,22 +68,20 @@ export const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()
 export const STEPS = [
   { key: 'business', label: 'Business' },
   { key: 'documents', label: 'Documents' },
-  { key: 'model', label: 'Model' },
-  { key: 'terms', label: 'Terms' },
   { key: 'qr', label: 'QR point' },
   { key: 'owner', label: 'Owner' },
+  { key: 'payout', label: 'Bank and UPI' },
   { key: 'review', label: 'Review' },
 ] as const;
 
 /** Which step a server problem belongs to, so the review can send you back to fix it. */
 export function stepForField(field: string): number {
-  if (field.startsWith('business.')) return 0;
+  if (field.startsWith('business.') || field.startsWith('model.')) return 0;
   if (field.startsWith('documents.')) return 1;
-  if (field.startsWith('model.')) return 2;
-  if (field.startsWith('terms.')) return 3;
-  if (field.startsWith('qrPoint.')) return 4;
-  if (field.startsWith('owner.')) return 5;
-  return 6;
+  if (field.startsWith('qrPoint.')) return 2;
+  if (field.startsWith('owner.')) return 3;
+  if (field.startsWith('payout.')) return 4;
+  return 5;
 }
 
 export type FieldErrors = Record<string, string>;
@@ -126,14 +124,6 @@ export function checkBusiness(b: {
   return e;
 }
 
-export function checkTerms(t: { partnerSharePct?: number | null; note?: string }): FieldErrors {
-  const e: FieldErrors = {};
-  if (t.partnerSharePct === undefined || t.partnerSharePct === null) e.partnerSharePct = 'Set the partner’s share';
-  else if (t.partnerSharePct < 0 || t.partnerSharePct > 100) e.partnerSharePct = 'Between 0 and 100';
-  if (!t.note || t.note.trim().length < 3) e.note = 'Write down what was agreed (at least 3 characters)';
-  return e;
-}
-
 export function checkOwner(o: { fullName?: string; email?: string; phone?: string | null }): FieldErrors {
   const e: FieldErrors = {};
   if (!o.fullName?.trim()) e.fullName = 'Required';
@@ -159,4 +149,23 @@ export function checkDocumentFile(file: { size: number; type: string }): string 
   if (file.size > DOCUMENT_MAX_BYTES) return 'A document can be at most 5 MB';
   if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) return 'Only PDF, PNG or JPEG files';
   return null;
+}
+
+/**
+ * Bank and UPI details. Every field is optional: a shop can be created without them and
+ * add them later. Only a value that is given is checked for shape.
+ */
+export function checkPayout(p: {
+  bankAccountHolder?: string; bankName?: string; bankAccountNumber?: string; bankIfsc?: string; upiId?: string;
+}): FieldErrors {
+  const e: FieldErrors = {};
+  const digits = (p.bankAccountNumber ?? '').replace(/\s+/g, '');
+  if (digits && !/^[0-9]{6,18}$/.test(digits)) e['payout.bankAccountNumber'] = 'Digits only: 6 to 18 of them';
+  const ifsc = (p.bankIfsc ?? '').trim();
+  if (ifsc && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(ifsc)) e['payout.bankIfsc'] = 'An IFSC is 11 characters, for example HDFC0001234';
+  const upi = (p.upiId ?? '').trim();
+  if (upi && !/^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.-]{1,63}$/.test(upi)) {
+    e['payout.upiId'] = 'A UPI ID looks like name@bank, for example sharma@hdfc';
+  }
+  return e;
 }

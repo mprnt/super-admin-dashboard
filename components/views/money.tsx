@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { call, downloadFile, messageOf, qs, seg } from '../../lib/client/api';
 import { useConsole, useResource } from '../../lib/client/console';
 import { count, dateTime, duration, money, percent, shortDate } from '../../lib/format';
-import type { AttentionJob, Comparison, Kiosk, KioskBreakdownRow, PriceList, PricingInfo, Range, SeriesPoint, SessionRow, Summary } from '../../lib/types';
+import type { AttentionJob, Comparison, KioskBreakdownRow, PriceList, Range, SeriesPoint, SessionRow, Summary } from '../../lib/types';
 import { BarSeries, DataTable, PageHeader, useToast } from '../ui/data';
 import { ConfirmDialog, Modal } from '../ui/dialogs';
 import { Button, Field, Input, KV, Notice, Panel, Pill, Select, Stat } from '../ui/primitives';
@@ -340,93 +340,119 @@ export function MoneyView({ orgId }: { orgId: string }) {
 // Pricing: rates in force and every rate ever published
 // ---------------------------------------------------------------------------
 
+/**
+ * Each partner's own black-and-white and colour rate, read only: the shop sets it from its
+ * own dashboard. The MPRNT default is the one rate this console sets, for a partner that
+ * has not set its own.
+ */
 export function PricingView({ orgId }: { orgId?: string }) {
   const ctx = useConsole();
   const toast = useToast();
   const [publishing, setPublishing] = useState(false);
 
-  const lists = useResource<{ priceLists: PriceList[] }>(`pricing/lists${qs({ organizationId: orgId })}`);
+  const lists = useResource<{ priceLists: PriceList[] }>('pricing/lists');
+  const all = lists.data?.priceLists ?? [];
+  // The API lists the newest rate first, so the first match is the rate in force.
+  const platform = all.filter((p) => p.scope === 'platform');
+  const platformNow = platform[0] ?? null;
+  const shopRates = all.filter((p) => p.scope === 'organization' && p.kioskId === null);
+  const shopRateFor = (id: string) => shopRates.find((p) => p.organizationId === id) ?? null;
+
   const org = orgId ? ctx.organizations.find((o) => o.id === orgId) : null;
-  const kiosks = orgId ? ctx.kiosks.filter((k) => k.organizationId === orgId) : ctx.kiosks;
+  const partners = orgId ? ctx.organizations.filter((o) => o.id === orgId) : ctx.organizations;
 
   return (
     <>
       <PageHeader
         crumbs={org ? [{ label: 'Partners', href: '/partners' }, { label: org.name, href: `/partners/${org.id}` }] : undefined}
         title="Pricing"
-        meta={
-          <span>
-            Rates are never edited in place. A new rate supersedes the old one from its start date, so quotes already given stay valid.
-          </span>
-        }
+        meta={<span>Each partner sets its own black-and-white and colour rate from its own dashboard. MPRNT can see them here, and does not change them.</span>}
         actions={
-          <Button variant="primary" onClick={() => setPublishing(true)}>
-            Publish rates
-          </Button>
+          !orgId ? (
+            <Button variant="primary" onClick={() => setPublishing(true)}>
+              Set MPRNT default
+            </Button>
+          ) : undefined
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="Rates in force" hint="Resolved for each QR point. The most specific rate applies: QR point, then partner, then platform." className="xl:col-span-2">
-          {kiosks.length === 0 ? (
-            <p className="text-sm text-mute">No QR points, so there is no per-point rate to resolve.</p>
-          ) : (
-            <div className="space-y-2">
-              {kiosks.map((k) => (
-                <KioskRate key={k.id} kiosk={k} />
-              ))}
-            </div>
-          )}
-          {orgId && (
-            <p className="mt-3 text-xs text-mute">
-              The API resolves rates per QR point. A partner-wide figure is not returned, so none is shown here.
-            </p>
-          )}
-        </Panel>
+      <Panel title={org ? org.name : 'Rates by partner'} hint="The rate in force for each partner's customers. A partner that has not set one pays the MPRNT default.">
+        {lists.error && <Notice tone="bad">{lists.error}</Notice>}
+        <DataTable
+          caption="Partner rates"
+          rows={partners}
+          rowKey={(o) => o.id}
+          empty="No partners yet"
+          rowHref={(o) => `/partners/${o.id}`}
+          columns={[
+            { key: 'partner', header: 'Partner', cell: (o) => o.name },
+            { key: 'bw', header: 'B&W / page', align: 'right', cell: (o) => money(shopRateFor(o.id)?.bwPerPage ?? platformNow?.bwPerPage) },
+            { key: 'col', header: 'Colour / page', align: 'right', cell: (o) => money(shopRateFor(o.id)?.colorPerPage ?? platformNow?.colorPerPage) },
+            {
+              key: 'by',
+              header: 'Set by',
+              cell: (o) => {
+                const r = shopRateFor(o.id);
+                if (!r) return <Pill tone="warn">MPRNT default</Pill>;
+                return <Pill tone={r.createdBy === 'shop' ? 'ok' : 'muted'}>{r.createdBy === 'shop' ? 'The shop' : 'MPRNT'}</Pill>;
+              },
+            },
+            {
+              key: 'since',
+              header: 'In force since',
+              cell: (o) => {
+                const r = shopRateFor(o.id);
+                return r ? dateTime(r.effectiveFrom, o.timezone) : '—';
+              },
+            },
+          ]}
+        />
+      </Panel>
 
-        <Panel title="Publish" hint="Takes effect at the start date, or immediately if left blank">
-          <p className="text-sm text-mute">
-            Publishing changes what customers pay from the start date. It is audited and cannot be taken back. Supersede it with a later rate to correct
-            it.
-          </p>
-          <div className="mt-4">
-            <Button variant="primary" onClick={() => setPublishing(true)}>
-              Publish rates
-            </Button>
-          </div>
-        </Panel>
-      </div>
+      {orgId && (
+        <div className="mt-4">
+          <Panel title="Rate history" hint="Every rate this partner has set, newest first. A rate is never edited in place.">
+            <DataTable
+              caption="Rate history"
+              rows={shopRates.filter((p) => p.organizationId === orgId)}
+              rowKey={(p) => p.id}
+              empty="The partner has not set its own rates yet"
+              columns={[
+                { key: 'from', header: 'Takes effect', cell: (p) => dateTime(p.effectiveFrom, org?.timezone) },
+                { key: 'by', header: 'Set by', cell: (p) => (p.createdBy === 'shop' ? 'The shop' : 'MPRNT') },
+                { key: 'bw', header: 'B&W / page', align: 'right', cell: (p) => money(p.bwPerPage) },
+                { key: 'col', header: 'Colour / page', align: 'right', cell: (p) => money(p.colorPerPage) },
+              ]}
+            />
+          </Panel>
+        </div>
+      )}
 
-      <div className="mt-4">
-        <Panel title="Rate history" hint="Every rate published in this scope, newest first">
-          {lists.error && <Notice tone="bad">{lists.error}</Notice>}
-          <DataTable
-            caption="Price lists"
-            rows={lists.data?.priceLists ?? []}
-            rowKey={(p) => p.id}
-            empty="No rates have been published in this scope"
-            columns={[
-              { key: 'from', header: 'Takes effect', cell: (p) => dateTime(p.effectiveFrom, org?.timezone) },
-              { key: 'scope', header: 'Scope', cell: (p) => <Pill tone={p.scope === 'platform' ? 'muted' : p.scope === 'kiosk' ? 'amber' : 'ok'}>{p.scope}</Pill> },
-              { key: 'org', header: 'Partner', cell: (p) => p.organizationName ?? 'Whole platform' },
-              { key: 'kiosk', header: 'QR point', mono: true, cell: (p) => p.kioskCode ?? '—' },
-              { key: 'bw', header: 'B&W / page', align: 'right', cell: (p) => money(p.bwPerPage) },
-              { key: 'col', header: 'Colour / page', align: 'right', cell: (p) => money(p.colorPerPage) },
-              { key: 'min', header: 'Minimum charge', align: 'right', cell: (p) => money(p.minCharge) },
-              { key: 'made', header: 'Published', cell: (p) => dateTime(p.createdAt, org?.timezone) },
-              { key: 'id', header: 'ID', cell: (p) => <Id value={p.id} /> },
-            ]}
-          />
-        </Panel>
-      </div>
+      {!orgId && (
+        <div className="mt-4">
+          <Panel title="MPRNT default" hint="Used for a partner that has not set its own rates">
+            <DataTable
+              caption="MPRNT default rates"
+              rows={platform}
+              rowKey={(p) => p.id}
+              empty="No MPRNT default has been set"
+              columns={[
+                { key: 'from', header: 'Takes effect', cell: (p) => dateTime(p.effectiveFrom) },
+                { key: 'bw', header: 'B&W / page', align: 'right', cell: (p) => money(p.bwPerPage) },
+                { key: 'col', header: 'Colour / page', align: 'right', cell: (p) => money(p.colorPerPage) },
+                { key: 'min', header: 'Minimum charge', align: 'right', cell: (p) => money(p.minCharge) },
+                { key: 'made', header: 'Set', cell: (p) => dateTime(p.createdAt) },
+              ]}
+            />
+          </Panel>
+        </div>
+      )}
 
       {publishing && (
-        <PublishRatesDialog
-          orgId={orgId}
-          kiosks={kiosks}
+        <PublishPlatformDialog
           onClose={() => setPublishing(false)}
           onDone={() => {
-            toast('Rates published');
+            toast('MPRNT default set');
             lists.reload();
           }}
         />
@@ -435,181 +461,71 @@ export function PricingView({ orgId }: { orgId?: string }) {
   );
 }
 
-function KioskRate({ kiosk }: { kiosk: Kiosk }) {
-  const rate = useResource<PricingInfo>(`pricing${qs({ kioskId: kiosk.id })}`);
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line px-3 py-2.5">
-      <div className="min-w-0">
-        <div className="text-sm text-ink">
-          <span className="font-mono">{kiosk.kioskId}</span> · {kiosk.name}
-        </div>
-        <div className="text-xs text-mute">{rate.error ? rate.error : rate.data ? `source: ${rate.data.source}` : 'Loading…'}</div>
-      </div>
-      {rate.data && (
-        <div className="flex gap-4 font-mono text-sm tabular-nums text-ink">
-          <span>B&W {money(rate.data.blackAndWhite.pricePerPage)}</span>
-          <span>Colour {money(rate.data.color.pricePerPage)}</span>
-          <span>Min {money(rate.data.minCharge)}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PublishRatesDialog({
-  orgId,
-  kiosks,
-  onClose,
-  onDone,
-}: {
-  orgId?: string;
-  kiosks: Kiosk[];
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const ctx = useConsole();
-  const [scope, setScope] = useState<'platform' | 'organization' | 'kiosk'>(orgId ? 'organization' : 'platform');
-  const [kioskId, setKioskId] = useState(kiosks[0]?.id ?? '');
-  const [partnerId, setPartnerId] = useState('');
+/** Sets the MPRNT default: the rate for a partner that has not set its own. */
+function PublishPlatformDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [bw, setBw] = useState('');
   const [color, setColor] = useState('');
   const [minCharge, setMinCharge] = useState('0');
-  const [effectiveFrom, setEffectiveFrom] = useState('');
-  const [confirming, setConfirming] = useState(false);
+  const [from, setFrom] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const kiosk = kiosks.find((k) => k.id === kioskId);
-  // The partner a rate is for is always explicit. On the platform page a
-  // partner-wide rate never takes its partner from a QR point picker.
-  const targetPartner = orgId ?? partnerId;
-  const partner = ctx.organizations.find((o) => o.id === targetPartner);
-
-  const valid =
-    bw !== '' &&
-    color !== '' &&
-    (scope === 'platform' || (scope === 'organization' && Boolean(partner)) || (scope === 'kiosk' && Boolean(kiosk)));
-
-  const payload = () => {
-    const base = {
-      bwPerPage: Number(bw),
-      colorPerPage: Number(color),
-      minCharge: Number(minCharge) || 0,
-      effectiveFrom: effectiveFrom || undefined,
-    };
-    if (scope === 'platform') return { ...base, organizationId: null, kioskId: null };
-    if (scope === 'organization') return { ...base, organizationId: partner?.id ?? null, kioskId: null };
-    return { ...base, organizationId: kiosk?.organizationId ?? null, kioskId: kiosk?.id ?? null };
-  };
-
-  const describedScope =
-    scope === 'platform'
-      ? 'the whole platform'
-      : scope === 'organization'
-        ? partner?.name ?? 'the partner'
-        : `QR point ${kiosk?.kioskId ?? ''}`;
-
-  async function publish() {
-    await call('POST', 'pricing/lists', payload());
-    onDone();
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (bw === '' || color === '') {
+      setError('Enter the black-and-white and the colour rate.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await call('POST', 'pricing/lists', {
+        bwPerPage: Number(bw),
+        colorPerPage: Number(color),
+        minCharge: Number(minCharge || 0),
+        ...(from ? { effectiveFrom: new Date(from).toISOString() } : {}),
+      });
+      onDone();
+      onClose();
+    } catch (err) {
+      setError(messageOf(err));
+      setBusy(false);
+    }
   }
-  // The publish dialog closes with the parent once the rates are saved.
 
   return (
-    <>
-      <Modal open={!confirming} onClose={onClose} title="Publish rates">
-        <form
-          className="space-y-4"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            if (valid) setConfirming(true);
-          }}
-        >
-          <Field label="Scope" hint="The most specific rate applies: QR point first, then partner, then platform.">
-            <Select value={scope} onChange={(e) => setScope(e.target.value as typeof scope)}>
-              {!orgId && <option value="platform">Whole platform</option>}
-              <option value="organization">Whole partner</option>
-              <option value="kiosk">One QR point</option>
-            </Select>
+    <Modal open onClose={onClose} title="Set the MPRNT default">
+      <form className="space-y-4" onSubmit={submit}>
+        <p className="text-sm text-mute">
+          The default applies to a partner that has not set its own rates. A rate a partner has set always takes precedence.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Black and white, per page">
+            <Input type="number" min={0} step="0.01" value={bw} onChange={(e) => setBw(e.target.value)} required />
           </Field>
-
-          {scope === 'organization' && !orgId && (
-            <Field label="Partner">
-              <Select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
-                <option value="">Choose a partner</option>
-                {ctx.organizations
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-          )}
-
-          {scope === 'kiosk' && (
-            <Field label="QR point">
-              <Select value={kioskId} onChange={(e) => setKioskId(e.target.value)}>
-                {kiosks.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.kioskId} · {k.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Black & white, per page (₹)">
-              <Input type="number" min={0} step="0.01" value={bw} onChange={(e) => setBw(e.target.value)} required />
-            </Field>
-            <Field label="Colour, per page (₹)">
-              <Input type="number" min={0} step="0.01" value={color} onChange={(e) => setColor(e.target.value)} required />
-            </Field>
-            <Field label="Minimum charge (₹)">
-              <Input type="number" min={0} step="0.01" value={minCharge} onChange={(e) => setMinCharge(e.target.value)} />
-            </Field>
-          </div>
-
-          <Field label="Takes effect" hint="Leave blank for now. A date in the future waits until then.">
-            <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+          <Field label="Colour, per page">
+            <Input type="number" min={0} step="0.01" value={color} onChange={(e) => setColor(e.target.value)} required />
           </Field>
-
-          <div className="flex justify-end gap-2">
-            <Button onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={!valid}>
-              Review
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <ConfirmDialog
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        title="Publish these rates?"
-        danger
-        requireText="PUBLISH"
-        confirmLabel="Publish"
-        body={
-          <>
-            B&W {money(Number(bw))} · Colour {money(Number(color))} · Minimum {money(Number(minCharge) || 0)} per page, for{' '}
-            <strong className="text-ink">{describedScope}</strong>, from {effectiveFrom ? shortDate(effectiveFrom) : 'now'}. Customers are charged these
-            rates from that moment.
-          </>
-        }
-        onConfirm={async () => {
-          await publish();
-          onClose();
-        }}
-      />
-    </>
+          <Field label="Minimum charge">
+            <Input type="number" min={0} step="0.01" value={minCharge} onChange={(e) => setMinCharge(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Takes effect" hint="Leave blank to take effect now">
+          <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+        {error && <Notice tone="bad">{error}</Notice>}
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Set default'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Attention: paid, not printed, and the refunds that follow
-// ---------------------------------------------------------------------------
 
 export function AttentionView({ orgId }: { orgId?: string }) {
   const ctx = useConsole();

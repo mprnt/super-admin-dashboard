@@ -589,7 +589,6 @@ export function PrinterTable({
           header: 'Status',
           cell: (p: Printer) => (p.enrollment.revokedAt ? <Pill tone="bad">revoked</Pill> : <StatusPill status={p.status} />),
         },
-        { key: 'station', header: 'Station', cell: (p: Printer) => (p.station.isStation ? <Pill tone="amber">Station</Pill> : <Pill tone="muted">Own printer</Pill>) },
         { key: 'hb', header: 'Last heartbeat', cell: (p: Printer) => (p.secondsSinceHeartbeat === null ? 'Never' : ago(p.secondsSinceHeartbeat)) },
         { key: 'jobs', header: 'Active jobs', align: 'right', cell: (p: Printer) => count(p.activeJobs) },
         { key: 'paper', header: 'Paper', align: 'right', cell: (p: Printer) => (p.paperLevel === null ? '—' : `${p.paperLevel}%`) },
@@ -623,8 +622,6 @@ function EnrollPrinterDialog({
   const [duplex, setDuplex] = useState(false);
   const [maxCopies, setMaxCopies] = useState('10');
   const [paperSizes, setPaperSizes] = useState('a4');
-  const [isStation, setIsStation] = useState(false);
-  const [stationName, setStationName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -643,8 +640,6 @@ function EnrollPrinterDialog({
           maxCopies: Number(maxCopies) || 1,
           supportedPaperSizes: paperSizes.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
         },
-        isStation,
-        stationName: isStation && stationName.trim() ? stationName.trim() : null,
       });
       onIssued(issued);
       onClose();
@@ -688,20 +683,6 @@ function EnrollPrinterDialog({
             </label>
           </div>
         </div>
-        <fieldset className="rounded-2xl border border-line p-3">
-          <legend className="px-1 text-xs text-mute">MPRNT station</legend>
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-brand" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
-            This printer is in an MPRNT station
-          </label>
-          {isStation && (
-            <div className="mt-3">
-              <Field label="Station name" hint="What the partner calls it. Optional.">
-                <Input value={stationName} onChange={(e) => setStationName(e.target.value)} maxLength={100} />
-              </Field>
-            </div>
-          )}
-        </fieldset>
         {error && <Notice tone="bad">{error}</Notice>}
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} disabled={busy}>
@@ -794,7 +775,6 @@ export function PrinterDetailView({ orgId, printerId }: { orgId: string; printer
               { label: 'Printer ID', value: printer.printerId, mono: true },
               { label: 'State', value: revoked ? <Pill tone="bad">revoked</Pill> : <StatusPill status={printer.status} /> },
               { label: 'Silent (heartbeat overdue)', value: printer.silent ? 'Yes' : 'No' },
-              { label: 'Station', value: printer.station.isStation ? `Yes · ${printer.station.name ?? 'no name'}` : 'No (partner printer)' },
               { label: 'QR point', value: `${printer.kiosk.code} · ${printer.kiosk.name ?? ''}` },
               { label: 'QR point ID', value: printer.kiosk.id, mono: true },
               { label: 'Partner', value: org?.name ?? printer.organization?.name ?? '—' },
@@ -939,8 +919,6 @@ export function PrinterDetailView({ orgId, printerId }: { orgId: string; printer
 
 function EditPrinterDialog({ printer, onClose, onSaved }: { printer: Printer; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(printer.name);
-  const [isStation, setIsStation] = useState(printer.station.isStation);
-  const [stationName, setStationName] = useState(printer.station.name ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -948,11 +926,6 @@ function EditPrinterDialog({ printer, onClose, onSaved }: { printer: Printer; on
     e.preventDefault();
     const patch: Record<string, unknown> = {};
     if (name.trim() !== printer.name) patch.name = name.trim();
-    if (isStation !== printer.station.isStation) patch.isStation = isStation;
-    // station_name may only be set while isStation is true (a database rule), so it is
-    // sent cleared whenever the printer is not a station.
-    const nextStationName = isStation ? stationName.trim() || null : null;
-    if (nextStationName !== (printer.station.name ?? null)) patch.stationName = nextStationName;
     if (Object.keys(patch).length === 0) {
       onClose();
       return;
@@ -976,15 +949,6 @@ function EditPrinterDialog({ printer, onClose, onSaved }: { printer: Printer; on
         <Field label="Name">
           <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
-        <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" className="h-4 w-4 accent-brand" checked={isStation} onChange={(e) => setIsStation(e.target.checked)} />
-          This printer is in an MPRNT station
-        </label>
-        {isStation && (
-          <Field label="Station name" hint="Optional. Cleared when the printer is not a station.">
-            <Input value={stationName} onChange={(e) => setStationName(e.target.value)} maxLength={100} />
-          </Field>
-        )}
         {error && <Notice tone="bad">{error}</Notice>}
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} disabled={busy}>

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { call, messageOf } from './api';
+import { isModelOne } from '../models';
 import type { Kiosk, Organization, Printer, StaffUser } from '../types';
 
 /**
@@ -56,11 +57,15 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     ])
       .then(([orgs, kiosks, printers, users]) => {
         if (!live) return;
+        // This console runs Model 1 only. Partners on another model, and everything that
+        // belongs to them, are left out here: they are managed from their own dashboard.
+        const partners = orgs.organizations.filter(isModelOne);
+        const partnerIds = new Set(partners.map((o) => o.id));
         setState({
-          organizations: orgs.organizations,
-          kiosks: kiosks.kiosks,
-          printers: printers.printers,
-          users: users.users,
+          organizations: partners,
+          kiosks: kiosks.kiosks.filter((k) => k.organizationId !== null && partnerIds.has(k.organizationId)),
+          printers: printers.printers.filter((p) => p.organization !== null && partnerIds.has(p.organization.id)),
+          users: users.users.filter((u) => u.organizationId === null || partnerIds.has(u.organizationId)),
           ready: true,
           error: null,
         });

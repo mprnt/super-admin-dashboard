@@ -17,10 +17,29 @@ export interface Organization {
   timezone: string;
   contactEmail: string | null;
   contactPhone: string | null;
+  /** Who last set the contact details: MPRNT, or the shop itself. */
+  contactUpdatedBy: DetailsSource | null;
+  contactUpdatedAt: string | null;
+  payout: PayoutDetails;
   kioskCount?: number;
   adminCount?: number;
   createdAt: string;
 }
+
+/** Who set a detail. 'platform' is MPRNT; 'shop' is the partner's own owner or manager. */
+export type DetailsSource = 'platform' | 'shop';
+
+/** A partner's bank and UPI details. The full account number is never sent: only its last four digits. */
+export interface PayoutDetails {
+  bankAccountHolder: string | null;
+  bankName: string | null;
+  bankIfsc: string | null;
+  bankAccountLast4: string | null;
+  upiId: string | null;
+  updatedBy: DetailsSource | null;
+  updatedAt: string | null;
+}
+
 
 export type KioskStatus = 'active' | 'inactive' | 'maintenance';
 
@@ -198,6 +217,8 @@ export interface PriceList {
   minCharge: number;
   effectiveFrom: string;
   createdAt: string;
+  /** Who published the rate: MPRNT for the platform default, or the shop itself. */
+  createdBy: DetailsSource | null;
 }
 
 export interface AuditEntry {
@@ -457,6 +478,15 @@ export interface OnboardingPayload {
   terms?: { partnerSharePct?: number | null; startsOn?: string | null; note?: string };
   qrPoint?: { code?: string; name?: string; location?: string; paperSizes?: string[] } | null;
   owner?: { fullName?: string; email?: string; phone?: string | null };
+  /** Bank and UPI, optional. The account number is typed here and never returned; only its last four digits are. */
+  payout?: {
+    bankAccountHolder?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+    upiId?: string;
+    bankAccountLast4?: string | null;
+  };
 }
 
 export interface OnboardingProblem {

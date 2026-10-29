@@ -38,7 +38,6 @@ const MORE_LINKS: { href: string; label: string; hint: string }[] = [
   { href: '/sessions', label: 'Sessions', hint: 'Every job, filterable and exportable' },
   { href: '/pricing', label: 'Pricing', hint: 'Rates in force and their history' },
   { href: '/reports', label: 'Partner comparison', hint: 'Every partner side by side' },
-  { href: '/business-models', label: 'Business models', hint: 'Who is on which model' },
   { href: '/billing', label: 'Billing', hint: 'Hardware sales, subscriptions and prices' },
   { href: '/queue', label: 'Print queue', hint: 'Jobs routed in the last 24 hours' },
   { href: '/leads', label: 'Leads', hint: 'Enquiries from the website' },

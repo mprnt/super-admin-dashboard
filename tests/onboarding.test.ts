@@ -6,7 +6,7 @@ import {
   checkGstin,
   checkOwner,
   checkQrPoint,
-  checkTerms,
+  checkPayout,
   gstCheckCharacter,
   INDIAN_STATES,
   GST_STATE_CODES,
@@ -52,10 +52,13 @@ test('the pincode, mobile and email are checked on the line they are typed', () 
   assert.ok(bad.pincode && bad.contactPhone && bad.billingEmail);
 });
 
-test('the revenue share needs a percentage and a note of what was agreed', () => {
-  assert.ok(checkTerms({ partnerSharePct: 150, note: 'ok note' }).partnerSharePct);
-  assert.ok(checkTerms({ partnerSharePct: 35, note: '' }).note);
-  assert.deepEqual(checkTerms({ partnerSharePct: 35, note: 'Agreed on the call' }), {});
+test('bank and UPI are optional, and checked for shape only when given', () => {
+  assert.deepEqual(checkPayout({}), {});
+  assert.deepEqual(checkPayout({ bankAccountNumber: '123456789012', bankIfsc: 'HDFC0001234', upiId: 'sharma@hdfc' }), {});
+  assert.ok(checkPayout({ bankAccountNumber: '12345' })['payout.bankAccountNumber']);
+  assert.ok(checkPayout({ bankAccountNumber: 'abc123456' })['payout.bankAccountNumber']);
+  assert.ok(checkPayout({ bankIfsc: 'HDFC1001234' })['payout.bankIfsc']);
+  assert.ok(checkPayout({ upiId: 'no-at-sign' })['payout.upiId']);
 });
 
 test('the owner needs a name and an email; a QR point needs a code, name and location', () => {
@@ -73,9 +76,8 @@ test('a document is checked for size and type before it is sent', () => {
 test('a server problem is sent back to the step that holds it', () => {
   assert.equal(stepForField('business.gstNumber'), 0);
   assert.equal(stepForField('documents.gst_certificate'), 1);
-  assert.equal(stepForField('model.businessModel'), 2);
-  assert.equal(stepForField('terms.note'), 3);
-  assert.equal(stepForField('qrPoint.code'), 4);
-  assert.equal(stepForField('owner.email'), 5);
-  assert.equal(stepForField('something.else'), 6);
+  assert.equal(stepForField('qrPoint.code'), 2);
+  assert.equal(stepForField('owner.email'), 3);
+  assert.equal(stepForField('payout.upiId'), 4);
+  assert.equal(stepForField('something.else'), 5);
 });

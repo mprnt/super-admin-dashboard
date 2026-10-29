@@ -4,14 +4,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { call, messageOf, qs, seg } from '../../lib/client/api';
 import { useConsole, useResource } from '../../lib/client/console';
-import { BUSINESS_MODELS, modelById, type BusinessModelId } from '../../lib/models';
 import { actionLabel, count, dateTime, duration, money, percent, shortDate } from '../../lib/format';
-import type { AuditEntry, Comparison, Organization, Range, Summary } from '../../lib/types';
+import type { AuditEntry, Comparison, Organization, PriceList, Range, Summary } from '../../lib/types';
 import { DataTable, PageHeader, useToast } from '../ui/data';
 import { ConfirmDialog, Modal } from '../ui/dialogs';
 import { Button, Field, Input, KV, LinkButton, Loading, Notice, Panel, Pill, Stat, Tabs, Textarea, cx } from '../ui/primitives';
-import { ModelPill, OrgPill, RawRecord } from './common';
-import { RevenueSplitPanel } from './split';
+import { OrgPill, RawRecord } from './common';
 import { BillingPanel } from './billing';
 import { PartnerDocumentsPanel } from './onboarding';
 
@@ -21,7 +19,6 @@ import { PartnerDocumentsPanel } from './onboarding';
 
 const SECTIONS = [
   { key: 'overview', label: 'Overview', path: '' },
-  { key: 'model', label: 'Business model', path: '/model' },
   { key: 'staff', label: 'Staff', path: '/staff' },
   { key: 'qr-points', label: 'QR points', path: '/qr-points' },
   { key: 'printers', label: 'Printers', path: '/printers' },
@@ -61,7 +58,6 @@ export function PartnerFrame({ orgId, children }: { orgId: string; children: Rea
         meta={
           <>
             <OrgPill org={org} />
-            <ModelPill id={org.businessModel} />
             <span className="font-mono text-[12px]">{org.slug}</span>
             <span className="font-mono text-[12px]" title={org.id}>
               {org.id}
@@ -112,7 +108,6 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
 
   const kiosks = ctx.kiosks.filter((k) => k.organizationId === orgId);
   const printers = ctx.printers.filter((p) => p.organization?.id === orgId);
-  const stations = printers.filter((p) => p.station.isStation).length;
   const online = printers.filter((p) => p.status === 'online' || p.status === 'busy').length;
   const revoked = printers.filter((p) => Boolean(p.enrollment.revokedAt) || p.status === 'revoked').length;
   const staff = ctx.users.filter((u) => u.organizationId === orgId && !u.deletedAt);
@@ -153,10 +148,7 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
               { label: 'Status', value: <OrgPill org={record} /> },
               { label: 'Slug', value: record.slug, mono: true },
               { label: 'Partner ID', value: record.id, mono: true },
-              { label: 'Business model (now)', value: <ModelPill id={record.businessModel} /> },
               { label: 'Timezone', value: record.timezone, mono: true },
-              { label: 'Contact email', value: record.contactEmail, mono: true },
-              { label: 'Contact phone', value: record.contactPhone, mono: true },
               { label: 'Joined', value: dateTime(record.createdAt, record.timezone) },
               { label: 'QR points', value: count(record.kioskCount ?? kiosks.length) },
               { label: 'Staff records (incl. removed)', value: count(record.adminCount ?? null) },
@@ -172,12 +164,16 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
               { label: 'QR points', value: `${kiosks.length} (${kiosks.filter((k) => k.status === 'active').length} active)` },
               { label: 'Printers', value: `${printers.length}` },
               { label: 'Online or busy', value: `${online}` },
-              { label: 'Stations (MPRNT-supplied)', value: `${stations}` },
               { label: 'Revoked', value: `${revoked}` },
               { label: 'Staff accounts', value: `${staff.length} not removed` },
             ]}
           />
         </Panel>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <ShopkeeperPanel record={record} onChanged={refresh} />
+        <RatesPanel orgId={orgId} timezone={record.timezone} />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -242,6 +238,11 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
             ]}
           />
         </Panel>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <BillingPanel org={record} />
+        <PartnerDocumentsPanel orgId={record.id} timezone={record.timezone} />
       </div>
 
       <div className="mt-4">
@@ -315,8 +316,6 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
 function EditPartnerDialog({ org, onClose, onSaved }: { org: Organization; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(org.name);
   const [timezone, setTimezone] = useState(org.timezone);
-  const [contactEmail, setContactEmail] = useState(org.contactEmail ?? '');
-  const [contactPhone, setContactPhone] = useState(org.contactPhone ?? '');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -328,8 +327,6 @@ function EditPartnerDialog({ org, onClose, onSaved }: { org: Organization; onClo
     const patch: Record<string, unknown> = {};
     if (name.trim() !== org.name) patch.name = name.trim();
     if (timezone.trim() !== org.timezone) patch.timezone = timezone.trim();
-    if ((contactEmail.trim() || null) !== (org.contactEmail || null)) patch.contactEmail = contactEmail.trim() || null;
-    if ((contactPhone.trim() || null) !== (org.contactPhone || null)) patch.contactPhone = contactPhone.trim() || null;
     if (notes.trim()) patch.notes = notes.trim();
 
     if (Object.keys(patch).length === 0) {
@@ -355,16 +352,8 @@ function EditPartnerDialog({ org, onClose, onSaved }: { org: Organization; onClo
         <Field label="Name">
           <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={255} />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Timezone" hint="IANA name, e.g. Asia/Kolkata">
-            <Input value={timezone} onChange={(e) => setTimezone(e.target.value)} maxLength={64} className="font-mono" />
-          </Field>
-          <Field label="Contact phone">
-            <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} maxLength={32} />
-          </Field>
-        </div>
-        <Field label="Contact email">
-          <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} maxLength={255} />
+        <Field label="Timezone" hint="IANA name, e.g. Asia/Kolkata. Contact and bank details are under Shopkeeper details.">
+          <Input value={timezone} onChange={(e) => setTimezone(e.target.value)} maxLength={64} className="font-mono" />
         </Field>
         <Field label="Internal notes" hint="Write-only. Saving replaces the stored notes. Leave blank to keep them as they are.">
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
@@ -383,179 +372,234 @@ function EditPartnerDialog({ org, onClose, onSaved }: { org: Organization; onClo
   );
 }
 
+
 // ---------------------------------------------------------------------------
-// Business model
+// Shopkeeper details: contact, bank and UPI. The shop can set these itself; the
+// platform can set them too, and the source of each is shown.
 // ---------------------------------------------------------------------------
 
-export function PartnerModelView({ orgId }: { orgId: string }) {
-  const toast = useToast();
-  const ctx = useConsole();
-  const org = useResource<Organization>(`organizations/${seg(orgId)}`);
-  const created = useResource<{ total: number; entries: AuditEntry[] }>(
-    `audit${qs({ organizationId: orgId, action: 'organization.created', limit: 5 })}`
+/** Who set a detail, and when. Nothing added yet shows as a warning, so a gap is visible. */
+function SourceChip({ source, at, timezone }: { source: 'platform' | 'shop' | null; at: string | null; timezone: string }) {
+  if (!source) return <Pill tone="warn">Not added yet</Pill>;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <Pill tone={source === 'shop' ? 'ok' : 'muted'}>{source === 'shop' ? 'Added by the shop' : 'Added by MPRNT'}</Pill>
+      {at && <span className="text-xs text-mute">{dateTime(at, timezone)}</span>}
+    </span>
   );
-  const changes = useResource<{ total: number; entries: AuditEntry[] }>(
-    `audit${qs({ organizationId: orgId, action: 'organization.model_changed', limit: 50 })}`
-  );
+}
 
-  // null = nothing chosen yet; '' = "Not set" chosen explicitly.
-  const [choice, setChoice] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
-
-  const record = org.data;
-  if (!record) return org.error ? <Notice tone="bad">{org.error}</Notice> : <Loading />;
-
-  const selected = choice ?? (record.businessModel ?? '');
-  const target: BusinessModelId | null = selected === '' ? null : (selected as BusinessModelId);
-  const changed = target !== (record.businessModel ?? null);
-
-  const registrationEntry = created.data?.entries[created.data.entries.length - 1];
-  const registrationRaw = registrationEntry?.details?.businessModel;
-  const registrationId = typeof registrationRaw === 'string' ? registrationRaw : null;
-  const registrationModel = modelById(registrationId);
-
-  const printers = ctx.printers.filter((p) => p.organization?.id === orgId);
-  const stations = printers.filter((p) => p.station.isStation).length;
-  const ownPrinters = printers.length - stations;
+function ShopkeeperPanel({ record, onChanged }: { record: Organization; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const payout = record.payout;
+  const missing = 'Not added yet';
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="On now" hint="The partnership model in force today. Reporting and billing use this.">
-          <div className="space-y-2">
-            <ModelPill id={record.businessModel} />
-            <p className="text-sm text-ink">{modelById(record.businessModel)?.name ?? 'No model has been recorded for this partner.'}</p>
-            <p className="text-xs text-mute">{modelById(record.businessModel)?.summary ?? ''}</p>
+    <Panel
+      title="Shopkeeper details"
+      hint="Contact, bank and UPI. The shop adds or changes these from its own dashboard, or MPRNT adds them here."
+      actions={
+        <Button size="sm" onClick={() => setEditing(true)}>
+          Edit
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        <section>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-medium text-ink">Contact</h3>
+            <SourceChip source={record.contactUpdatedBy} at={record.contactUpdatedAt} timezone={record.timezone} />
           </div>
-        </Panel>
-
-        <Panel title="Chosen at registration" hint="Read from the audit entry written when the partner was created. It is not a separate field.">
-          {created.error ? (
-            <Notice tone="bad">{created.error}</Notice>
-          ) : registrationEntry ? (
-            <div className="space-y-2">
-              <ModelPill id={registrationId} />
-              <p className="text-sm text-ink">{registrationModel?.name ?? 'Not recorded when the partner was created'}</p>
-              <p className="text-xs text-mute">
-                Recorded {dateTime(registrationEntry.createdAt, record.timezone)}
-                {registrationEntry.actor ? ` by ${registrationEntry.actor.email}` : ''}.
-              </p>
-            </div>
-          ) : (
-            <Notice tone="warn">No registration entry in the audit trail. The partner may predate the audit log.</Notice>
-          )}
-        </Panel>
-
-        <Panel title="Fleet by family" hint="Printers this partner has, split by who supplied the hardware">
-          <dl className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-line px-3 py-2">
-              <dt className="text-[11px] uppercase tracking-wider text-mute">MPRNT station</dt>
-              <dd className="font-mono text-2xl text-ink">{stations}</dd>
-            </div>
-            <div className="rounded-2xl border border-line px-3 py-2">
-              <dt className="text-[11px] uppercase tracking-wider text-mute">Partner printer</dt>
-              <dd className="font-mono text-2xl text-ink">{ownPrinters}</dd>
-            </div>
-          </dl>
-        </Panel>
+          <KV
+            columns={2}
+            items={[
+              { label: 'Email', value: record.contactEmail ?? missing, mono: true },
+              { label: 'Phone', value: record.contactPhone ?? missing, mono: true },
+            ]}
+          />
+        </section>
+        <section>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-medium text-ink">Bank account and UPI</h3>
+            <SourceChip source={payout.updatedBy} at={payout.updatedAt} timezone={record.timezone} />
+          </div>
+          <KV
+            columns={2}
+            items={[
+              { label: 'Account holder', value: payout.bankAccountHolder ?? missing },
+              { label: 'Bank', value: payout.bankName ?? missing },
+              { label: 'IFSC', value: payout.bankIfsc ?? missing, mono: true },
+              { label: 'Account number', value: payout.bankAccountLast4 ? `ending ${payout.bankAccountLast4}` : missing, mono: true },
+              { label: 'UPI ID', value: payout.upiId ?? missing, mono: true, wide: true },
+            ]}
+          />
+        </section>
       </div>
 
-      <Panel title="The four models" hint="The same definitions as the website's partner page">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {BUSINESS_MODELS.map((m) => {
-            const isNow = record.businessModel === m.id;
-            const isRegistered = registrationId === m.id;
-            return (
-              <article key={m.id} className={cx('rounded-2xl border p-3', isNow ? 'border-brand-text/60 bg-brand/5' : 'border-line')}>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Pill tone="amber">{m.short}</Pill>
-                  {isNow && <Pill tone="ok">On now</Pill>}
-                  {isRegistered && <Pill tone="muted">At registration</Pill>}
-                </div>
-                <h3 className="mt-2 text-sm font-medium text-ink">{m.name}</h3>
-                <p className="mt-1 text-xs text-mute">{m.summary}</p>
-                <p className="mt-2 text-[11px] uppercase tracking-wider text-mute">{m.family}</p>
-              </article>
-            );
-          })}
-        </div>
-      </Panel>
-
-      <Panel title="Change the partnership model" hint="Every change is audited with the previous value. Past sessions and revenue are not altered.">
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (changed) setConfirming(true);
+      {editing && (
+        <EditShopkeeperDialog
+          record={record}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            onChanged();
           }}
-        >
-          <Field label="New model">
-            <select
-              value={selected}
-              onChange={(e) => setChoice(e.target.value)}
-              className="w-full md:min-w-[260px] rounded-2xl border border-line bg-bg px-2.5 py-2 text-sm text-ink focus:border-brand-text focus:outline-none"
+        />
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * Sets the shop's contact and bank details from the platform side. Only what changed is
+ * sent. The account number is typed afresh each time: leaving it blank keeps the saved one.
+ */
+function EditShopkeeperDialog({ record, onClose, onSaved }: { record: Organization; onClose: () => void; onSaved: () => void }) {
+  const payout = record.payout;
+  const [contactEmail, setContactEmail] = useState(record.contactEmail ?? '');
+  const [contactPhone, setContactPhone] = useState(record.contactPhone ?? '');
+  const [holder, setHolder] = useState(payout.bankAccountHolder ?? '');
+  const [bankName, setBankName] = useState(payout.bankName ?? '');
+  const [ifsc, setIfsc] = useState(payout.bankIfsc ?? '');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [upi, setUpi] = useState(payout.upiId ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const digits = accountNumber.replace(/\s+/g, '');
+    if (digits && !/^[0-9]{6,18}$/.test(digits)) return setError('An account number is 6 to 18 digits.');
+    if (ifsc.trim() && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(ifsc.trim())) return setError('An IFSC code is 11 characters, for example HDFC0001234.');
+    if (upi.trim() && !/^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.-]{1,63}$/.test(upi.trim())) {
+      return setError('A UPI ID looks like name@bank, for example sharma@hdfc.');
+    }
+
+    const contact: Record<string, unknown> = {};
+    if ((contactEmail.trim() || null) !== (record.contactEmail || null)) contact.contactEmail = contactEmail.trim() || null;
+    if ((contactPhone.trim() || null) !== (record.contactPhone || null)) contact.contactPhone = contactPhone.trim() || null;
+
+    // An empty value is sent as empty, which clears the saved detail.
+    const bank: Record<string, unknown> = {};
+    if (holder.trim() !== (payout.bankAccountHolder ?? '')) bank.bankAccountHolder = holder.trim();
+    if (bankName.trim() !== (payout.bankName ?? '')) bank.bankName = bankName.trim();
+    if (ifsc.trim().toUpperCase() !== (payout.bankIfsc ?? '')) bank.bankIfsc = ifsc.trim().toUpperCase();
+    if (upi.trim() !== (payout.upiId ?? '')) bank.upiId = upi.trim();
+    if (digits) bank.bankAccountNumber = digits;
+
+    if (Object.keys(contact).length === 0 && Object.keys(bank).length === 0) {
+      onClose();
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      if (Object.keys(contact).length > 0) await call('PATCH', `organizations/${seg(record.id)}`, contact);
+      if (Object.keys(bank).length > 0) await call('PATCH', `organizations/${seg(record.id)}/payout`, bank);
+      onSaved();
+    } catch (err) {
+      setError(messageOf(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Edit shopkeeper details">
+      <form className="space-y-5" onSubmit={save}>
+        <fieldset className="space-y-4">
+          <legend className="mb-1 text-sm font-medium text-ink">Contact</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Email">
+              <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} maxLength={255} />
+            </Field>
+            <Field label="Phone">
+              <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} maxLength={32} />
+            </Field>
+          </div>
+        </fieldset>
+
+        <fieldset className="space-y-4">
+          <legend className="mb-1 text-sm font-medium text-ink">Bank account and UPI</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Account holder">
+              <Input value={holder} onChange={(e) => setHolder(e.target.value)} maxLength={255} />
+            </Field>
+            <Field label="Bank">
+              <Input value={bankName} onChange={(e) => setBankName(e.target.value)} maxLength={255} />
+            </Field>
+            <Field label="IFSC" hint="11 characters, for example HDFC0001234">
+              <Input value={ifsc} onChange={(e) => setIfsc(e.target.value)} maxLength={11} className="font-mono uppercase" />
+            </Field>
+            <Field
+              label="Account number"
+              hint={payout.bankAccountLast4 ? `Leave blank to keep the saved account, ending ${payout.bankAccountLast4}.` : 'Digits only.'}
             >
-              <option value="">Not set</option>
-              {BUSINESS_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label} · {m.name}
-                </option>
-              ))}
-            </select>
+              <Input
+                inputMode="numeric"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                maxLength={24}
+                className="font-mono"
+                autoComplete="off"
+              />
+            </Field>
+          </div>
+          <Field label="UPI ID" hint="For example sharma@hdfc">
+            <Input value={upi} onChange={(e) => setUpi(e.target.value)} maxLength={256} className="font-mono" />
           </Field>
-          <Button type="submit" variant="primary" disabled={!changed}>
-            Review change
+        </fieldset>
+
+        {error && <Notice tone="bad">{error}</Notice>}
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
           </Button>
-        </form>
-      </Panel>
+          <Button type="submit" variant="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
-      <BillingPanel org={record} />
+// ---------------------------------------------------------------------------
+// Rates: what the shop charges. Read only here; the shop sets its own rates.
+// ---------------------------------------------------------------------------
 
-      <PartnerDocumentsPanel orgId={record.id} timezone={record.timezone} />
+function RatesPanel({ orgId, timezone }: { orgId: string; timezone: string }) {
+  const lists = useResource<{ priceLists: PriceList[] }>('pricing/lists');
+  const all = lists.data?.priceLists ?? [];
+  // The API lists the newest rate first, so the first match is the rate in force.
+  const shopRate = all.find((p) => p.organizationId === orgId && !p.kioskId) ?? null;
+  const platform = all.find((p) => p.scope === 'platform') ?? null;
 
-      <RevenueSplitPanel org={record} />
-
-      <Panel title="Change history" hint="Each time the partnership model was changed, with the values before and after">
-        {changes.error && <Notice tone="bad">{changes.error}</Notice>}
-        <DataTable
-          caption="Partnership model changes"
-          rows={changes.data?.entries ?? []}
-          rowKey={(e) => e.id}
-          empty="The model has never been changed"
-          columns={[
-            { key: 'when', header: 'When', cell: (e) => dateTime(e.createdAt, record.timezone) },
-            { key: 'from', header: 'From', cell: (e) => modelById(String(e.details?.from ?? ''))?.label ?? 'Not set' },
-            { key: 'to', header: 'To', cell: (e) => modelById(String(e.details?.to ?? ''))?.label ?? 'Not set' },
-            { key: 'by', header: 'By', cell: (e) => e.actor?.email ?? '—' },
+  return (
+    <Panel title="Rates" hint="Black-and-white and colour per page, as the shop has set them. Read only here.">
+      {lists.error && <Notice tone="bad">{lists.error}</Notice>}
+      {shopRate ? (
+        <KV
+          columns={2}
+          items={[
+            { label: 'Black and white, per page', value: money(shopRate.bwPerPage), mono: true },
+            { label: 'Colour, per page', value: money(shopRate.colorPerPage), mono: true },
+            { label: 'Set by', value: shopRate.createdBy === 'platform' ? 'MPRNT' : 'The shop' },
+            { label: 'In force since', value: dateTime(shopRate.effectiveFrom, timezone) },
+            {
+              label: 'MPRNT default',
+              value: platform ? `${money(platform.bwPerPage)} B&W · ${money(platform.colorPerPage)} colour` : 'Not set',
+              wide: true,
+            },
           ]}
         />
-      </Panel>
-
-      <ConfirmDialog
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        title="Change the partnership model?"
-        danger
-        requireText={record.name}
-        confirmLabel="Change model"
-        body={
-          <>
-            From <strong className="text-ink">{modelById(record.businessModel)?.label ?? 'Not set'}</strong> to{' '}
-            <strong className="text-ink">{modelById(target)?.label ?? 'Not set'}</strong>. This is a commercial term, and the change is audited.
-          </>
-        }
-        onConfirm={async () => {
-          await call('PATCH', `organizations/${seg(orgId)}`, { businessModel: target });
-          toast('Business model updated');
-          setChoice(null);
-          org.reload();
-          changes.reload();
-          created.reload();
-          ctx.reload();
-        }}
-      />
-
-      <RawRecord value={{ organization: record, registration: registrationEntry ?? null, changes: changes.data?.entries ?? [] }} />
-    </div>
+      ) : (
+        <Notice tone="warn">
+          The shop has not set its own rates. Its customers pay the MPRNT default
+          {platform ? ` (${money(platform.bwPerPage)} black and white, ${money(platform.colorPerPage)} colour)` : ''} until it does.
+        </Notice>
+      )}
+      <p className="mt-3 text-xs text-mute">Rates are changed from the shop&apos;s own dashboard. They are never edited here.</p>
+    </Panel>
   );
 }

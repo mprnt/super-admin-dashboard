@@ -13,6 +13,9 @@ const org = (id: string, name: string, extra: Partial<Organization> = {}): Organ
   contactEmail: null,
   contactPhone: null,
   createdAt: '2026-01-01T00:00:00Z',
+  contactUpdatedBy: null,
+  contactUpdatedAt: null,
+  payout: { bankAccountHolder: null, bankName: null, bankIfsc: null, bankAccountLast4: null, upiId: null, updatedBy: null, updatedAt: null },
   ...extra,
 });
 
@@ -67,7 +70,7 @@ const K1 = 'k1000000-0000-4000-8000-000000000001';
 const K2 = 'k2000000-0000-4000-8000-000000000002';
 
 const input = {
-  organizations: [org(ORG_B, 'Zeta Print'), org(ORG_A, 'Alpha Print', { businessModel: 'revenue-share', status: 'suspended' })],
+  organizations: [org(ORG_B, 'Zeta Print'), org(ORG_A, 'Alpha Print', { status: 'suspended', businessModel: 'integration' })],
   kiosks: [kiosk(K2, ORG_A, 'S2'), kiosk(K1, ORG_A, 'S1')],
   printers: [
     printer('RPI_B', K1, ORG_A, 'Counter B', { status: 'busy' }),
@@ -95,7 +98,7 @@ test('a partner is a single row: its sections live in the partner tabs, not the 
   for (const node of partners) assert.equal(node.children, undefined, `${node.label} has no sub-items`);
   assert.equal(alpha.href, `/partners/${ORG_A}`);
   assert.equal(alpha.tone, 'bad', 'a suspended partner is marked');
-  assert.equal(alpha.meta, 'Model 2A');
+  assert.equal(alpha.meta, 'Model 1');
 });
 
 test('a partner with no model shows that, not a blank', () => {
@@ -129,7 +132,7 @@ test('the active row is the partner for every page inside it, and the page itsel
 
 test('the filter matches a partner by name, model or kind', () => {
   assert.equal(nodeMatches(alpha, 'alpha'), true);
-  assert.equal(nodeMatches(alpha, 'model 2a'), true);
+  assert.equal(nodeMatches(alpha, 'model 1'), true);
   assert.equal(nodeMatches(alpha, 'zeta'), false);
   assert.equal(nodeMatches(alpha, ''), true);
 });

@@ -4,12 +4,11 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useConsole, useResource } from '../../lib/client/console';
 import { qs } from '../../lib/client/api';
-import { BUSINESS_MODELS } from '../../lib/models';
 import { ago, count, dateTime, money, percent, actionLabel } from '../../lib/format';
 import type { AttentionJob, AuditEntry, Lead, OrgComparison, QueueStatus } from '../../lib/types';
 import { DataTable, PageHeader } from '../ui/data';
 import { Button, LinkButton, Notice, Panel, Pill, Select, Stat, StatusDot } from '../ui/primitives';
-import { ModelPill, StatusPill, Id } from './common';
+import { StatusPill, Id } from './common';
 
 const PERIODS = [
   { value: 'day', label: 'Today' },
@@ -57,12 +56,6 @@ export function OverviewView() {
     audit.reload();
     leads.reload();
   }
-
-  const modelCounts = BUSINESS_MODELS.map((m) => ({
-    model: m,
-    count: orgs.filter((o) => o.businessModel === m.id).length,
-  }));
-  const notRecorded = orgs.filter((o) => !o.businessModel).length;
 
   return (
     <>
@@ -115,11 +108,10 @@ export function OverviewView() {
         />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid gap-4">
         <Panel
-          title="Partners and their business model"
-          hint="The model each partner is on now. The registration model and every change are on the partner's Business model page."
-          className="xl:col-span-2"
+          title="Partners"
+          hint="Model 1 partners, ranked by revenue this period"
           actions={<LinkButton href="/partners" size="sm">All partners</LinkButton>}
         >
           {comparison.error && <Notice tone="bad">{comparison.error}</Notice>}
@@ -130,7 +122,6 @@ export function OverviewView() {
             empty="No partners yet"
             columns={[
               { key: 'name', header: 'Partner', cell: (r) => r.organization.name },
-              { key: 'model', header: 'Model', cell: (r) => <ModelPill id={r.organization.businessModel} /> },
               {
                 key: 'activity',
                 header: 'Activity',
@@ -153,26 +144,6 @@ export function OverviewView() {
           />
         </Panel>
 
-        <Panel title="Business models" hint="Partners on each model">
-          <ul className="space-y-2">
-            {modelCounts.map(({ model, count: n }) => (
-              <li key={model.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-sm text-ink">{model.label}</div>
-                  <div className="truncate text-xs text-mute">{model.name}</div>
-                </div>
-                <span className="font-mono text-lg tabular-nums text-ink">{n}</span>
-              </li>
-            ))}
-            <li className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-line px-3 py-2">
-              <div className="text-sm text-warn">Not recorded</div>
-              <span className="font-mono text-lg tabular-nums text-warn">{notRecorded}</span>
-            </li>
-          </ul>
-          <div className="mt-3">
-            <LinkButton href="/business-models" size="sm">Open business models</LinkButton>
-          </div>
-        </Panel>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">

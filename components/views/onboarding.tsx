@@ -15,8 +15,8 @@ import {
   checkBusiness,
   checkDocumentFile,
   checkOwner,
+  checkPayout,
   checkQrPoint,
-  checkTerms,
   stepForField,
 } from '../../lib/onboarding';
 import type { OnboardingDraft, OnboardingPayload, OnboardingResult } from '../../lib/types';
@@ -24,37 +24,6 @@ import { useToast } from '../ui/data';
 import { ConfirmDialog } from '../ui/dialogs';
 import { Button, Field, Input, Loading, Notice, Panel, Pill, Select, Textarea, cx } from '../ui/primitives';
 import { QrStandPreview } from './qr-stand';
-
-const MODELS = [
-  {
-    value: 'integration',
-    label: 'Model 1 · Printer integration',
-    available: true,
-    partner: 'Uses its own printer, and pays for the integration kit and a monthly software fee.',
-    mprnt: 'Integration, software, payments and support. Keeps 100% of printing revenue.',
-  },
-  {
-    value: 'revenue-share',
-    label: 'Model 2 · Option A · Revenue share',
-    available: true,
-    partner: 'Hosts an MPRNT station and shares printing revenue.',
-    mprnt: 'Installs, runs and maintains the station, and keeps its agreed share of revenue.',
-  },
-  {
-    value: 'own-station',
-    label: 'Model 2 · Option B · Own station',
-    available: false,
-    partner: 'Buys a station and pays monthly software.',
-    mprnt: 'Coming later. Terms are not set up yet.',
-  },
-  {
-    value: 'full-purchase',
-    label: 'Model 3 · Full purchase',
-    available: false,
-    partner: 'Buys a station outright.',
-    mprnt: 'Coming later. Terms are not set up yet.',
-  },
-] as const;
 
 const inputClass = 'min-h-[44px] md:min-h-0';
 const selectClass = 'w-full rounded-2xl border border-line bg-bg px-2.5 py-2 text-base text-ink focus:border-brand-text focus:outline-none md:text-sm';
@@ -380,74 +349,6 @@ export function NewPartnerWizard() {
         )}
 
         {step === 2 && (
-          <div className="grid gap-3 md:grid-cols-2">
-            {MODELS.map((m) => {
-              const chosen = answers.model?.businessModel === m.value;
-              return (
-                <label
-                  key={m.value}
-                  className={cx(
-                    'flex gap-3 rounded-2xl border p-4',
-                    m.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
-                    chosen ? 'border-brand-text bg-brand-soft/40' : 'border-line'
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="model"
-                    className="mt-1"
-                    disabled={!m.available || readOnly}
-                    checked={chosen}
-                    onChange={() => setAnswers((a) => ({ ...a, model: { businessModel: m.value } }))}
-                  />
-                  <span className="space-y-1">
-                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
-                      {m.label}
-                      {!m.available && <Pill tone="muted">Coming later</Pill>}
-                    </span>
-                    <span className="block text-xs text-mute">Partner: {m.partner}</span>
-                    <span className="block text-xs text-mute">MPRNT: {m.mprnt}</span>
-                  </span>
-                </label>
-              );
-            })}
-            {errors['model.businessModel'] && <p className="text-xs text-bad md:col-span-2">{errors['model.businessModel']}</p>}
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
-            {answers.model?.businessModel === 'revenue-share' ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Partner’s share of printing revenue (%)" hint="MPRNT keeps the rest." error={errors.partnerSharePct}>
-                  <Input
-                    className={inputClass}
-                    inputMode="decimal"
-                    value={answers.terms?.partnerSharePct ?? ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setAnswers((a) => ({ ...a, terms: { ...(a.terms ?? {}), partnerSharePct: v === '' ? null : Number(v) } }));
-                    }}
-                  />
-                </Field>
-                <Field label="Starts on (optional)" hint="Blank means from the day it is saved.">
-                  <Input className={inputClass} type="date" value={answers.terms?.startsOn ?? ''} onChange={(e) => setAnswers((a) => ({ ...a, terms: { ...(a.terms ?? {}), startsOn: e.target.value || null } }))} />
-                </Field>
-                <div className="md:col-span-2">
-                  <Field label="What was agreed" hint="Written into the split history. Say what was agreed and by whom." error={errors.note}>
-                    <Textarea value={answers.terms?.note ?? ''} onChange={(e) => setAnswers((a) => ({ ...a, terms: { ...(a.terms ?? {}), note: e.target.value } }))} />
-                  </Field>
-                </div>
-              </div>
-            ) : (
-              <Notice tone="info">
-                Model 1 prices and the hardware sale are recorded on the partner’s Billing tab after it is created. Nothing is needed here.
-              </Notice>
-            )}
-          </div>
-        )}
-
-        {step === 4 && (
           <div className="space-y-4">
             <label className="flex items-center gap-3 text-sm text-ink">
               <input
@@ -498,7 +399,7 @@ export function NewPartnerWizard() {
           </div>
         )}
 
-        {step === 5 && (
+        {step === 3 && (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Owner’s full name" error={errors['owner.fullName']}>
@@ -517,7 +418,48 @@ export function NewPartnerWizard() {
           </div>
         )}
 
-        {step === 6 && (
+        {step === 4 && (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Account holder" hint="As it appears on the bank account. Optional." error={errors['payout.bankAccountHolder']}>
+                <Input className={inputClass} value={answers.payout?.bankAccountHolder ?? ''} onChange={(e) => setPayout({ bankAccountHolder: e.target.value })} />
+              </Field>
+              <Field label="Bank" error={errors['payout.bankName']}>
+                <Input className={inputClass} value={answers.payout?.bankName ?? ''} onChange={(e) => setPayout({ bankName: e.target.value })} />
+              </Field>
+              <Field
+                label="Account number"
+                hint={answers.payout?.bankAccountLast4 ? `Saved, ending ${answers.payout.bankAccountLast4}. Type a new number to change it.` : 'Digits only. Stored encrypted.'}
+                error={errors['payout.bankAccountNumber']}
+              >
+                <Input
+                  className={inputClass}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={answers.payout?.bankAccountNumber ?? ''}
+                  onChange={(e) => setPayout({ bankAccountNumber: e.target.value.replace(/\s+/g, '') })}
+                />
+              </Field>
+              <Field label="IFSC" hint="11 characters, for example HDFC0001234" error={errors['payout.bankIfsc']}>
+                <Input
+                  className={inputClass}
+                  maxLength={11}
+                  autoCapitalize="characters"
+                  value={answers.payout?.bankIfsc ?? ''}
+                  onChange={(e) => setPayout({ bankIfsc: e.target.value.toUpperCase() })}
+                />
+              </Field>
+            </div>
+            <Field label="UPI ID" hint="For example sharma@hdfc. Optional." error={errors['payout.upiId']}>
+              <Input className={inputClass} value={answers.payout?.upiId ?? ''} onChange={(e) => setPayout({ upiId: e.target.value })} />
+            </Field>
+            <Notice tone="info">
+              Bank and UPI details can wait. If they are left out, the shop adds them from its own dashboard, and they can be added here later.
+            </Notice>
+          </div>
+        )}
+
+        {step === 5 && (
           <Review draft={draft} answers={answers} onEdit={setStep} onCreate={() => setConfirming(true)} busy={busy} />
         )}
       </Panel>
@@ -530,7 +472,7 @@ export function NewPartnerWizard() {
           </Button>
         </div>
       )}
-      {step === 6 && (
+      {step === 5 && (
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
           <Button onClick={() => void back()} disabled={busy}>Back</Button>
         </div>
@@ -567,6 +509,9 @@ export function NewPartnerWizard() {
   function setOwner(values: Record<string, unknown>) {
     setAnswers((a) => ({ ...a, owner: { ...(a.owner ?? {}), ...values } }));
   }
+  function setPayout(values: Record<string, unknown>) {
+    setAnswers((a) => ({ ...a, payout: { ...(a.payout ?? {}), ...values } }));
+  }
 }
 
 function validate(step: number, a: OnboardingPayload, draft: OnboardingDraft | null): FieldErrors {
@@ -580,49 +525,54 @@ function validate(step: number, a: OnboardingPayload, draft: OnboardingDraft | n
       return e;
     }
     case 2:
-      return a.model?.businessModel === 'integration' || a.model?.businessModel === 'revenue-share'
-        ? {}
-        : { 'model.businessModel': 'Choose a model to continue' };
-    case 3:
-      return a.model?.businessModel === 'revenue-share' ? checkTerms(a.terms ?? {}) : {};
-    case 4:
       return a.qrPoint ? checkQrPoint(a.qrPoint) : {};
-    case 5:
+    case 3:
       return checkOwner(a.owner ?? {});
+    case 4:
+      return checkPayout(a.payout ?? {});
     default:
       return {};
   }
 }
 
-/** The part of the answers that belongs to one step, as the server expects it. */
+/** The part of the answers that belongs to one step, as the server expects it. Every partner is Model 1. */
 function sectionFor(step: number, a: OnboardingPayload): OnboardingPayload {
   switch (step) {
-    case 0: return { business: a.business };
-    case 2: return { model: a.model };
-    case 3: return { terms: a.terms };
-    case 4: return { qrPoint: a.qrPoint ?? null };
-    case 5: return { owner: a.owner };
+    case 0: return { business: a.business, model: { businessModel: 'integration' } };
+    case 2: return { qrPoint: a.qrPoint ?? null };
+    case 3: return { owner: a.owner };
+    case 4: return { payout: payoutFor(a.payout) };
     default: return {};
   }
 }
 
-/** "Partner 35% · MPRNT 65%" for a revenue share; a note for Model 1, where the terms are set on the Billing tab. */
-function revenueTerms(a: OnboardingPayload): string {
-  if (a.model?.businessModel !== 'revenue-share') return 'Set on the Billing tab after creation';
-  const share = a.terms?.partnerSharePct;
-  if (share === undefined || share === null) return '—';
-  const mprnt = Math.round((100 - Number(share)) * 100) / 100;
-  return `Partner ${share}% · MPRNT ${mprnt}%`;
+/** The bank and UPI fields the server takes. The saved last four digits are shown, never sent back. */
+function payoutFor(p: OnboardingPayload['payout']): OnboardingPayload['payout'] {
+  if (!p) return undefined;
+  return {
+    bankAccountHolder: p.bankAccountHolder,
+    bankName: p.bankName,
+    bankAccountNumber: p.bankAccountNumber,
+    bankIfsc: p.bankIfsc,
+    upiId: p.upiId,
+  };
+}
+
+/** What the bank and UPI details read as on the review: never the account number itself. */
+function payoutSummary(p: OnboardingPayload['payout']): string {
+  if (!p) return 'Not added. The shop can add it later.';
+  const account = p.bankAccountNumber ? `ending ${p.bankAccountNumber.slice(-4)}` : p.bankAccountLast4 ? `ending ${p.bankAccountLast4}` : null;
+  const parts = [p.bankName, account, p.upiId].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'Not added. The shop can add it later.';
 }
 
 function stepHint(step: number): string {
   const hints = [
     'Who the partner is, where it is, and whether it is registered for GST.',
     'The GST certificate is required for a registered business. The signed agreement is kept with the partner.',
-    'Choose the commercial model. The options open here are the ones available for onboarding now.',
-    'The terms for the chosen model. Model 1 terms are recorded on the Billing tab after creation.',
     'The first place this partner prints. You can add more later from the partner’s QR points tab.',
     'The person who signs in as the owner of this partner.',
+    'Where the shop is paid. Optional now: the shop can add these itself from its own dashboard.',
     'Check everything. Anything wrong is shown here and can be fixed on its step.',
   ];
   return hints[step] ?? '';
@@ -721,7 +671,6 @@ function Review({ draft, answers, onEdit, onCreate, busy }: {
   busy: boolean;
 }) {
   const b = answers.business ?? {};
-  const model = MODELS.find((m) => m.value === answers.model?.businessModel);
   const ready = draft.problems.length === 0 && draft.conflicts.length === 0;
 
   const rows: { label: string; value: string; step: number }[] = [
@@ -732,10 +681,10 @@ function Review({ draft, answers, onEdit, onCreate, busy }: {
     { label: 'Contact', value: [b.contactName, b.contactPhone, b.billingEmail].filter(Boolean).join(' · ') || '—', step: 0 },
     { label: 'GST', value: b.gstRegistered ? `Registered · ${b.gstNumber ?? '—'}` : 'Not registered', step: 0 },
     { label: 'Documents', value: draft.documents.map((d) => d.originalFilename).join(', ') || 'None', step: 1 },
-    { label: 'Model', value: model?.label ?? '—', step: 2 },
-    { label: 'Terms', value: revenueTerms(answers), step: 3 },
-    { label: 'First QR point', value: answers.qrPoint ? `${answers.qrPoint.code} · ${answers.qrPoint.name}` : 'Not now', step: 4 },
-    { label: 'Owner', value: [answers.owner?.fullName, answers.owner?.email].filter(Boolean).join(' · ') || '—', step: 5 },
+    { label: 'Model', value: 'Model 1 · Printer integration', step: 0 },
+    { label: 'First QR point', value: answers.qrPoint ? `${answers.qrPoint.code} · ${answers.qrPoint.name}` : 'Not now', step: 2 },
+    { label: 'Owner', value: [answers.owner?.fullName, answers.owner?.email].filter(Boolean).join(' · ') || '—', step: 3 },
+    { label: 'Bank and UPI', value: payoutSummary(answers.payout), step: 4 },
   ];
 
   return (
