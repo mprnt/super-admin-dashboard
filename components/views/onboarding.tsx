@@ -19,7 +19,41 @@ import {
   checkQrPoint,
   stepForField,
 } from '../../lib/onboarding';
-import type { OnboardingDraft, OnboardingPayload, OnboardingResult } from '../../lib/types';
+import type { DraftPatch, OnboardingDraft, OnboardingPayload, OnboardingResult } from '../../lib/types';
+
+/** A document chosen on this page and not yet saved to the draft. */
+interface StagedDocument {
+  id: string;
+  kind: 'gst_certificate' | 'agreement' | 'other';
+  file: File;
+}
+
+/** A document as the wizard shows it: saved to the draft, or still held here. */
+interface DocumentView {
+  id: string;
+  kind: string;
+  originalFilename: string;
+  sizeBytes: number;
+}
+
+interface Problem {
+  field: string;
+  message: string;
+}
+
+/** The field prefix each step's own problems carry, so a problem can be sent back to its step. */
+const STEP_PREFIX = ['business', 'documents', 'qrPoint', 'owner', 'payout'] as const;
+
+/** One list of problems, with a field named by the server or this page only once. */
+function mergeProblems(local: Problem[], server: Problem[]): Problem[] {
+  const seen = new Set<string>();
+  return [...local, ...server].filter((p) => {
+    const key = `${p.field}|${p.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 import { useToast } from '../ui/data';
 import { ConfirmDialog } from '../ui/dialogs';
 import { Button, Field, Input, Loading, Notice, Panel, Pill, Select, Textarea, cx } from '../ui/primitives';
@@ -34,8 +68,12 @@ export function NewPartnerWizard() {
   const params = useSearchParams();
   const toast = useToast();
 
+  // Nothing is written to the server while the operator works. `draft` is set only once a
+  // draft has been saved (by Save draft), or when the page was opened on a saved one.
   const [draft, setDraft] = useState<OnboardingDraft | null>(null);
   const [answers, setAnswers] = useState<OnboardingPayload>({});
+  const [staged, setStaged] = useState<StagedDocument[]>([]);
+  const [loading, setLoading] = useState(Boolean(params.get('draft')));
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState<{ tone: 'warn' | 'bad'; text: string; restart?: boolean } | null>(null);
@@ -45,29 +83,26 @@ export function NewPartnerWizard() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Open the draft named in the URL, or start a new one and name it in the URL,
-  // so a refresh or a shared link comes back to the same work.
+  // A draft that was saved earlier opens when the URL names it.
   useEffect(() => {
+    const id = params.get('draft');
+    if (!id) return;
     let cancelled = false;
-    async function open() {
-      const id = params.get('draft');
-      try {
-        if (id) {
-          const d = await call<OnboardingDraft>('GET', `onboarding/drafts/${id}`);
-          if (!cancelled) adopt(d);
-        } else {
-          await startNew();
-        }
-      } catch (err) {
+    call<OnboardingDraft>('GET', `onboarding/drafts/${id}`)
+      .then((d) => {
+        if (!cancelled) adopt(d);
+      })
+      .catch((err: unknown) => {
         if (cancelled) return;
         if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
           setNotice({ tone: 'warn', text: 'This draft is no longer available. Start a new partner.', restart: true });
         } else {
           setNotice({ tone: 'bad', text: messageOf(err) });
         }
-      }
-    }
-    void open();
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -85,24 +120,48 @@ export function NewPartnerWizard() {
     }
   }
 
-  async function startNew() {
-    const d = await call<OnboardingDraft>('POST', 'onboarding/drafts');
-    router.replace(`/partners/new?draft=${d.id}`);
-    adopt(d);
-    setNotice(null);
+  function startOver() {
+    setDraft(null);
+    setAnswers({});
+    setStaged([]);
     setStep(0);
+    setErrors({});
+    setNotice(null);
     setResult(null);
+    router.replace('/partners/new');
   }
 
-  /** Saves part of the draft. A stale version is refused, and the operator is told to reload. */
-  async function save(patch: OnboardingPayload): Promise<boolean> {
-    if (!draft) return false;
+  /**
+   * Writes the whole wizard to a draft: creates the draft if there is none, saves every
+   * answer, and uploads the staged documents. Only Save draft and Create partner call this.
+   */
+  async function persist(): Promise<OnboardingDraft | null> {
     setBusy(true);
     try {
-      const d = await call<OnboardingDraft>('PUT', `onboarding/drafts/${draft.id}`, { version: draft.version, patch });
-      adopt(d);
+      const current = draft ?? (await call<OnboardingDraft>('POST', 'onboarding/drafts'));
+      if (!draft) router.replace(`/partners/new?draft=${current.id}`);
+
+      const patch: DraftPatch = {
+        business: answers.business,
+        model: { businessModel: 'integration' },
+        qrPoint: answers.qrPoint ?? null,
+        owner: answers.owner,
+        payout: payoutFor(answers.payout),
+      };
+      await call<OnboardingDraft>('PUT', `onboarding/drafts/${current.id}`, { version: current.version, patch });
+
+      for (const doc of staged) {
+        const form = new FormData();
+        form.append('kind', doc.kind);
+        form.append('document', doc.file, doc.file.name);
+        await upload(`onboarding/drafts/${current.id}/documents`, form);
+      }
+
+      const saved = await call<OnboardingDraft>('GET', `onboarding/drafts/${current.id}`);
+      setStaged([]);
+      adopt(saved);
       setNotice(null);
-      return true;
+      return saved;
     } catch (err) {
       if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
         setNotice({ tone: 'bad', text: 'This draft was changed in another window. Reload the page to continue from the latest save.' });
@@ -111,54 +170,48 @@ export function NewPartnerWizard() {
       } else {
         setNotice({ tone: 'bad', text: messageOf(err) });
       }
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
   }
 
-  /** Checks the step's own answers, then saves them and moves on. */
-  async function next() {
-    const found = validate(step, answers, draft);
-    setErrors(found);
-    if (Object.keys(found).length > 0) return;
-    const saved = await save(sectionFor(step, answers));
-    if (saved) {
-      setErrors({});
-      setStep((s) => Math.min(s + 1, STEPS.length - 1));
-    }
+  async function saveDraft() {
+    const saved = await persist();
+    if (saved) toast('Draft saved. It is kept for 7 days without changes.');
   }
 
-  async function back() {
-    // Going back keeps what was typed, so nothing is lost when someone checks an earlier answer.
-    await save(sectionFor(step, answers));
+  /** Checks the step's own answers, then moves on. Nothing is saved by moving. */
+  function next() {
+    const found = validate(step, answers, hasGstCert);
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+    setErrors({});
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  }
+
+  function back() {
     setErrors({});
     setStep((s) => Math.max(s - 1, 0));
   }
 
-  async function uploadDocument(kind: 'gst_certificate' | 'agreement' | 'other', file: File) {
-    if (!draft) return;
+  /** A document is held here until the draft is saved. Only one of each kind is kept. */
+  function uploadDocument(kind: 'gst_certificate' | 'agreement' | 'other', file: File) {
     const problem = checkDocumentFile(file);
     if (problem) {
       setNotice({ tone: 'bad', text: problem });
       return;
     }
-    setBusy(true);
-    try {
-      const form = new FormData();
-      form.append('kind', kind);
-      form.append('document', file, file.name);
-      await upload(`onboarding/drafts/${draft.id}/documents`, form);
-      adopt(await call<OnboardingDraft>('GET', `onboarding/drafts/${draft.id}`));
-      setNotice(null);
-    } catch (err) {
-      setNotice({ tone: 'bad', text: messageOf(err) });
-    } finally {
-      setBusy(false);
-    }
+    setNotice(null);
+    setStaged((list) => [...list.filter((d) => d.kind !== kind), { id: `staged-${kind}-${Date.now()}`, kind, file }]);
   }
 
+  /** Removes a document held here at once. A document already saved to the draft is removed from it. */
   async function removeDocument(docId: string) {
+    if (docId.startsWith('staged-')) {
+      setStaged((list) => list.filter((d) => d.id !== docId));
+      return;
+    }
     if (!draft) return;
     setBusy(true);
     try {
@@ -171,21 +224,21 @@ export function NewPartnerWizard() {
     }
   }
 
+  /** Saves everything, then creates the partner. A problem the server finds is shown on the review. */
   async function create() {
-    if (!draft) return;
+    setConfirming(false);
+    const saved = await persist();
+    if (!saved) return;
     setBusy(true);
     try {
-      const r = await call<OnboardingResult>('POST', `onboarding/drafts/${draft.id}/complete`);
+      const r = await call<OnboardingResult>('POST', `onboarding/drafts/${saved.id}/complete`);
       setResult(r);
-      setConfirming(false);
     } catch (err) {
-      setConfirming(false);
       if (err instanceof ApiError && err.status === 409 && err.code === 'DRAFT_COMPLETED') {
         setNotice({ tone: 'warn', text: 'This partner was already created from this draft.', restart: true });
       } else {
         setNotice({ tone: 'bad', text: messageOf(err) });
-        // The review shows what the server still needs; refresh it.
-        adopt(await call<OnboardingDraft>('GET', `onboarding/drafts/${draft.id}`).catch(() => draft));
+        adopt(await call<OnboardingDraft>('GET', `onboarding/drafts/${saved.id}`).catch(() => saved));
       }
     } finally {
       setBusy(false);
@@ -205,30 +258,35 @@ export function NewPartnerWizard() {
     return <Created result={result} acknowledged={acknowledged} setAcknowledged={setAcknowledged} copied={copied} copyPassword={copyPassword} />;
   }
 
-  if (!draft) {
-    return notice ? (
-      <div className="space-y-4">
-        <Notice tone={notice.tone}>{notice.text}</Notice>
-        {notice.restart && <Button variant="primary" onClick={() => void startNew()}>Start a new partner</Button>}
-      </div>
-    ) : (
-      <Loading label="Opening the form" />
-    );
-  }
+  if (loading) return <Loading label="Opening the draft" />;
 
   const b = answers.business ?? {};
-  const docs = draft.documents;
+  const docs: DocumentView[] = [
+    ...(draft?.documents ?? []),
+    ...staged.map((d) => ({ id: d.id, kind: d.kind, originalFilename: d.file.name, sizeBytes: d.file.size })),
+  ];
   const hasGstCert = docs.some((d) => d.kind === 'gst_certificate');
-  const readOnly = draft.status !== 'open';
+  const readOnly = draft !== null && draft.status !== 'open';
+
+  // What is blocking, from this page's own answers, plus anything the server already found.
+  const localProblems = [0, 1, 2, 3, 4].flatMap((i) =>
+    Object.entries(validate(i, answers, hasGstCert)).map(([field, message]) => ({
+      field: field.includes('.') ? field : `${STEP_PREFIX[i]}.${field}`,
+      message,
+    }))
+  );
+  const problems = mergeProblems(localProblems, draft?.problems ?? []);
+  const conflicts = draft?.conflicts ?? [];
+  const counts = STEPS.map((_, i) => problems.filter((p) => stepForField(p.field) === i).length);
 
   return (
     <div className="space-y-6">
-      <Stepper current={step} problems={draft.problems} onPick={(s) => { if (s <= step) setStep(s); }} />
+      <Stepper current={step} counts={counts} onPick={(s) => { if (s <= step) setStep(s); }} />
 
       {notice && (
         <div className="space-y-3">
           <Notice tone={notice.tone}>{notice.text}</Notice>
-          {notice.restart && <Button variant="primary" onClick={() => void startNew()}>Start a new partner</Button>}
+          {notice.restart && <Button variant="primary" onClick={startOver}>Start a new partner</Button>}
         </div>
       )}
 
@@ -460,22 +518,29 @@ export function NewPartnerWizard() {
         )}
 
         {step === 5 && (
-          <Review draft={draft} answers={answers} onEdit={setStep} onCreate={() => setConfirming(true)} busy={busy} />
+          <Review problems={problems} conflicts={conflicts} docs={docs} answers={answers} onEdit={setStep} onCreate={() => setConfirming(true)} busy={busy} />
         )}
       </Panel>
 
-      {step < 6 && (
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          <Button onClick={() => void back()} disabled={step === 0 || busy}>Back</Button>
-          <Button variant="primary" onClick={() => void next()} disabled={busy || readOnly}>
-            {busy ? 'Saving…' : 'Save and continue'}
-          </Button>
+      {!readOnly && (
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Button onClick={back} disabled={step === 0 || busy}>Back</Button>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row">
+            <Button onClick={() => void saveDraft()} disabled={busy}>
+              {busy ? 'Saving…' : 'Save draft'}
+            </Button>
+            {step < STEPS.length - 2 && (
+              <Button variant="primary" onClick={next} disabled={busy}>
+                Continue
+              </Button>
+            )}
+          </div>
         </div>
       )}
-      {step === 5 && (
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          <Button onClick={() => void back()} disabled={busy}>Back</Button>
-        </div>
+      {!readOnly && (
+        <p className="text-xs text-mute sm:text-right">
+          Nothing is saved while you work. Choose Save draft to keep your answers for 7 days, or create the partner to save everything at once.
+        </p>
       )}
 
       <ConfirmDialog
@@ -487,7 +552,7 @@ export function NewPartnerWizard() {
         confirmLabel="Create partner"
         body={
           <>
-            This creates the partner, its first QR point and its owner’s login, in one step. The owner’s temporary password
+            Your answers are saved first, and then the partner, its first QR point and its owner’s login are created, in one step. The owner’s temporary password
             is shown once on the next screen. Nothing is created if anything above is wrong.
           </>
         }
@@ -514,14 +579,13 @@ export function NewPartnerWizard() {
   }
 }
 
-function validate(step: number, a: OnboardingPayload, draft: OnboardingDraft | null): FieldErrors {
+function validate(step: number, a: OnboardingPayload, hasGstCert: boolean): FieldErrors {
   switch (step) {
     case 0:
       return checkBusiness(a.business ?? {});
     case 1: {
       const e: FieldErrors = {};
-      const hasCert = (draft?.documents ?? []).some((d) => d.kind === 'gst_certificate');
-      if (a.business?.gstRegistered && !hasCert) e['documents.gst_certificate'] = 'Upload the GST certificate';
+      if (a.business?.gstRegistered && !hasGstCert) e['documents.gst_certificate'] = 'Upload the GST certificate';
       return e;
     }
     case 2:
@@ -532,17 +596,6 @@ function validate(step: number, a: OnboardingPayload, draft: OnboardingDraft | n
       return checkPayout(a.payout ?? {});
     default:
       return {};
-  }
-}
-
-/** The part of the answers that belongs to one step, as the server expects it. Every partner is Model 1. */
-function sectionFor(step: number, a: OnboardingPayload): OnboardingPayload {
-  switch (step) {
-    case 0: return { business: a.business, model: { businessModel: 'integration' } };
-    case 2: return { qrPoint: a.qrPoint ?? null };
-    case 3: return { owner: a.owner };
-    case 4: return { payout: payoutFor(a.payout) };
-    default: return {};
   }
 }
 
@@ -578,8 +631,7 @@ function stepHint(step: number): string {
   return hints[step] ?? '';
 }
 
-function Stepper({ current, problems, onPick }: { current: number; problems: { field: string }[]; onPick: (s: number) => void }) {
-  const counts = STEPS.map((_, i) => problems.filter((p) => stepForField(p.field) === i).length);
+function Stepper({ current, counts, onPick }: { current: number; counts: number[]; onPick: (s: number) => void }) {
   return (
     <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
       {STEPS.map((s, i) => {
@@ -671,15 +723,17 @@ function DocumentSlot({
   );
 }
 
-function Review({ draft, answers, onEdit, onCreate, busy }: {
-  draft: OnboardingDraft;
+function Review({ problems, conflicts, docs, answers, onEdit, onCreate, busy }: {
+  problems: Problem[];
+  conflicts: Problem[];
+  docs: DocumentView[];
   answers: OnboardingPayload;
   onEdit: (step: number) => void;
   onCreate: () => void;
   busy: boolean;
 }) {
   const b = answers.business ?? {};
-  const ready = draft.problems.length === 0 && draft.conflicts.length === 0;
+  const ready = problems.length === 0 && conflicts.length === 0;
 
   const rows: { label: string; value: string; step: number }[] = [
     { label: 'Trading name', value: b.tradingName ?? '—', step: 0 },
@@ -688,7 +742,7 @@ function Review({ draft, answers, onEdit, onCreate, busy }: {
     { label: 'Address', value: [b.addressLine1, b.addressLine2, b.city, b.state, b.pincode].filter(Boolean).join(', ') || '—', step: 0 },
     { label: 'Contact', value: [b.contactName, b.contactPhone, b.billingEmail].filter(Boolean).join(' · ') || '—', step: 0 },
     { label: 'GST', value: b.gstRegistered ? `Registered · ${b.gstNumber ?? '—'}` : 'Not registered', step: 0 },
-    { label: 'Documents', value: draft.documents.map((d) => d.originalFilename).join(', ') || 'None', step: 1 },
+    { label: 'Documents', value: docs.map((d) => d.originalFilename).join(', ') || 'None', step: 1 },
     { label: 'Model', value: 'Model 1 · Printer integration', step: 0 },
     { label: 'First QR point', value: answers.qrPoint ? `${answers.qrPoint.code} · ${answers.qrPoint.name}` : 'Not now', step: 2 },
     { label: 'Owner', value: [answers.owner?.fullName, answers.owner?.email].filter(Boolean).join(' · ') || '—', step: 3 },
@@ -711,11 +765,11 @@ function Review({ draft, answers, onEdit, onCreate, busy }: {
         ))}
       </dl>
 
-      {draft.problems.length > 0 && (
+      {problems.length > 0 && (
         <Notice tone="warn">
           <p className="font-medium">Fix these before creating the partner:</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            {draft.problems.map((p) => (
+            {problems.map((p) => (
               <li key={p.field}>
                 <button type="button" className="text-left underline" onClick={() => onEdit(stepForField(p.field))}>
                   {p.message}
@@ -726,10 +780,10 @@ function Review({ draft, answers, onEdit, onCreate, busy }: {
         </Notice>
       )}
 
-      {draft.conflicts.length > 0 && (
+      {conflicts.length > 0 && (
         <Notice tone="bad">
           <ul className="list-disc space-y-1 pl-5">
-            {draft.conflicts.map((c) => (
+            {conflicts.map((c) => (
               <li key={c.field}>
                 <button type="button" className="text-left underline" onClick={() => onEdit(stepForField(c.field))}>
                   {c.message}

@@ -9,7 +9,7 @@ export default function NewPartnerPage() {
       <PageHeader
         crumbs={[{ label: 'Partners', href: '/partners' }, { label: 'New partner' }]}
         title="Onboard a Model 1 partner"
-        meta={<span>Your answers are saved as you go, and nothing is created until you confirm the review.</span>}
+        meta={<span>Nothing is saved while you work. Choose Save draft to keep your answers, or create the partner to save everything at once.</span>}
       />
       <Suspense fallback={<Loading label="Opening the form" />}>
         <NewPartnerWizard />

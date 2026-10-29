@@ -536,3 +536,6 @@ export interface DraftSummary {
   updatedAt: string;
   expiresAt: string;
 }
+
+/** What the wizard sends when it saves: every section of the answers, as the server takes them. */
+export type DraftPatch = OnboardingPayload;
