@@ -3,76 +3,93 @@
 @tailwind utilities;
 
 /*
- * MPRNT colour system for the platform console.
+ * MPRNT platform console: design tokens.
  *
- *   Forest green #195032  - the main colour: buttons, active states, the mark
- *   Warm off-white #F7F5EF - the body colour: the page in light mode
+ *   Brand green #015037  - the logo's own green: primary actions, active states, links
+ *   Deep green  #013D2A  - the navigation rail
+ *   Mint        #86DEA8  - the one accent: the active marker in the rail, live signals
  *
- * Tokens are RGB triplets so Tailwind can add opacity. Light is the default. Dark
- * applies when the system prefers it, unless the operator picked light; or when
- * the operator picked dark. The chosen theme is set before first paint by the
- * script in app/layout.tsx, so there is no flash.
+ * Surfaces are white on a cool off-white page and are separated by hairlines, not
+ * shadows, so dense tables stay calm. Tokens are RGB triplets so Tailwind can add
+ * opacity. Light is the default. Dark applies when the system prefers it, unless the
+ * operator picked light, or when the operator picked dark. The chosen theme is set
+ * before first paint by the script in app/layout.tsx, so there is no flash.
  */
 
 :root {
-  --c-bg: 247 245 239;
-  --c-surface: 255 255 252;
-  --c-raised: 240 237 229;
-  --c-line: 226 221 210;
-  --c-ink: 27 42 33;
-  --c-mute: 92 105 97;
-  --c-brand: 25 80 50;
-  --c-brand-text: 25 80 50;
+  --c-bg: 244 246 242;
+  --c-surface: 255 255 255;
+  --c-raised: 239 242 237;
+  --c-line: 223 228 221;
+  --c-line-strong: 200 208 199;
+  --c-ink: 14 29 21;
+  --c-mute: 90 105 96;
+  --c-brand: 1 80 55;
+  --c-brand-text: 1 80 55;
   --c-brand-ink: 255 255 255;
-  --c-brand-soft: 227 238 231;
-  --c-ok: 25 110 66;
-  --c-warn: 150 90 8;
-  --c-bad: 180 35 24;
-  --c-info: 46 94 140;
-  --shadow-card: 0 1px 2px rgb(27 42 33 / 0.05), 0 10px 30px -18px rgb(27 42 33 / 0.22);
-  --shadow-sheet: 0 -12px 40px -12px rgb(27 42 33 / 0.28);
+  --c-brand-soft: 225 240 231;
+  --c-accent: 134 222 168;
+  --c-side: 1 61 42;
+  --c-side-ink: 238 246 241;
+  --c-side-mute: 150 190 168;
+  --c-ok: 18 120 72;
+  --c-warn: 166 98 0;
+  --c-bad: 190 38 28;
+  --c-info: 38 96 160;
+  --shadow-card: 0 1px 0 rgb(14 29 21 / 0.03);
+  --shadow-sheet: 0 24px 60px -20px rgb(14 29 21 / 0.35);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --c-bg: 12 22 17;
-    --c-surface: 18 31 24;
-    --c-raised: 25 42 33;
-    --c-line: 44 66 53;
-    --c-ink: 236 243 238;
-    --c-mute: 158 177 164;
-    --c-brand: 46 122 82;
-    --c-brand-text: 111 196 153;
+    --c-bg: 9 16 12;
+    --c-surface: 15 25 19;
+    --c-raised: 21 34 27;
+    --c-line: 33 50 41;
+    --c-line-strong: 52 74 61;
+    --c-ink: 232 241 235;
+    --c-mute: 146 166 154;
+    --c-brand: 30 122 84;
+    --c-brand-text: 122 212 164;
     --c-brand-ink: 255 255 255;
-    --c-brand-soft: 27 54 40;
-    --c-ok: 111 196 153;
-    --c-warn: 240 190 80;
+    --c-brand-soft: 20 44 32;
+    --c-accent: 134 222 168;
+    --c-side: 3 36 25;
+    --c-side-ink: 232 241 235;
+    --c-side-mute: 128 156 140;
+    --c-ok: 118 206 158;
+    --c-warn: 240 188 84;
     --c-bad: 248 124 113;
-    --c-info: 130 180 245;
-    --shadow-card: 0 0 0 1px rgb(44 66 53 / 0.5);
-    --shadow-sheet: 0 -12px 40px -12px rgb(0 0 0 / 0.6);
+    --c-info: 132 182 246;
+    --shadow-card: 0 0 0 1px rgb(33 50 41 / 0.6);
+    --shadow-sheet: 0 24px 60px -20px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --c-bg: 12 22 17;
-  --c-surface: 18 31 24;
-  --c-raised: 25 42 33;
-  --c-line: 44 66 53;
-  --c-ink: 236 243 238;
-  --c-mute: 158 177 164;
-  --c-brand: 46 122 82;
-  --c-brand-text: 111 196 153;
+  --c-bg: 9 16 12;
+  --c-surface: 15 25 19;
+  --c-raised: 21 34 27;
+  --c-line: 33 50 41;
+  --c-line-strong: 52 74 61;
+  --c-ink: 232 241 235;
+  --c-mute: 146 166 154;
+  --c-brand: 30 122 84;
+  --c-brand-text: 122 212 164;
   --c-brand-ink: 255 255 255;
-  --c-brand-soft: 27 54 40;
-  --c-ok: 111 196 153;
-  --c-warn: 240 190 80;
+  --c-brand-soft: 20 44 32;
+  --c-accent: 134 222 168;
+  --c-side: 3 36 25;
+  --c-side-ink: 232 241 235;
+  --c-side-mute: 128 156 140;
+  --c-ok: 118 206 158;
+  --c-warn: 240 188 84;
   --c-bad: 248 124 113;
-  --c-info: 130 180 245;
-  --shadow-card: 0 0 0 1px rgb(44 66 53 / 0.5);
-  --shadow-sheet: 0 -12px 40px -12px rgb(0 0 0 / 0.6);
+  --c-info: 132 182 246;
+  --shadow-card: 0 0 0 1px rgb(33 50 41 / 0.6);
+  --shadow-sheet: 0 24px 60px -20px rgb(0 0 0 / 0.7);
   color-scheme: dark;
 }
 
@@ -86,8 +103,9 @@ body {
   background: rgb(var(--c-bg));
   color: rgb(var(--c-ink));
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
@@ -112,7 +130,7 @@ textarea {
   input,
   select,
   textarea {
-    font-size: 15px;
+    font-size: 14px;
   }
 }
 
@@ -152,4 +170,19 @@ textarea {
 
 table {
   font-variant-numeric: tabular-nums;
+}
+
+/* Numbers line up in every figure, not only in tables. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, quiet scrollbars inside panels and the navigation rail. */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--c-line-strong)) transparent;
+}
+.rail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.18) transparent;
 }

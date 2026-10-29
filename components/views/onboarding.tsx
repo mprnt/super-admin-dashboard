@@ -581,27 +581,35 @@ function stepHint(step: number): string {
 function Stepper({ current, problems, onPick }: { current: number; problems: { field: string }[]; onPick: (s: number) => void }) {
   const counts = STEPS.map((_, i) => problems.filter((p) => stepForField(p.field) === i).length);
   return (
-    <ol className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+    <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
       {STEPS.map((s, i) => {
         const done = i < current;
         const active = i === current;
         const issues = counts[i] ?? 0;
         return (
-          <li key={s.key} className="shrink-0">
+          <li key={s.key} className="min-w-0">
             <button
               type="button"
               onClick={() => onPick(i)}
               disabled={i > current}
               aria-current={active ? 'step' : undefined}
               className={cx(
-                'flex min-h-[44px] items-center gap-2 rounded-full border px-3 text-sm',
-                active ? 'border-brand-text bg-brand text-brand-ink' : done ? 'border-line text-ink' : 'border-line text-mute',
-                i > current && 'opacity-60'
+                'relative flex min-h-[48px] w-full items-center gap-2.5 overflow-hidden rounded-lg border bg-surface px-3 text-left transition',
+                active ? 'border-brand-text' : 'border-line hover:border-line-strong',
+                i > current && 'cursor-not-allowed opacity-55'
               )}
             >
-              <span className="font-mono text-xs">{i + 1}</span>
-              {s.label}
-              {issues > 0 && <span className="rounded-full bg-bad/15 px-1.5 text-xs text-bad">{issues}</span>}
+              <span aria-hidden className={cx('absolute inset-x-0 top-0 h-[3px]', done || active ? 'bg-brand-text' : 'bg-transparent')} />
+              <span
+                className={cx(
+                  'grid h-6 w-6 shrink-0 place-items-center rounded-md text-[11.5px] font-bold',
+                  done ? 'bg-brand text-brand-ink' : active ? 'bg-brand-soft text-brand-text' : 'bg-raised text-mute'
+                )}
+              >
+                {done ? '✓' : i + 1}
+              </span>
+              <span className={cx('min-w-0 flex-1 truncate text-[13px] font-semibold', active || done ? 'text-ink' : 'text-mute')}>{s.label}</span>
+              {issues > 0 && <span className="tnum shrink-0 rounded-md bg-bad/10 px-1.5 text-[11px] font-bold text-bad">{issues}</span>}
             </button>
           </li>
         );

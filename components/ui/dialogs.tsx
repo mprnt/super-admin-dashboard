@@ -63,7 +63,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px] md:items-center md:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgb(1_30_20/0.45)] backdrop-blur-[2px] md:items-center md:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -74,15 +74,15 @@ export function Modal({
         tabIndex={-1}
         className={cx(
           'safe-bottom flex w-full flex-col bg-surface shadow-sheet outline-none',
-          'max-h-[92dvh] rounded-t-[28px] md:max-h-[88vh] md:rounded-3xl',
+          'max-h-[92dvh] rounded-t-2xl border border-line md:max-h-[88vh] md:rounded-xl',
           full ? 'h-[92dvh] md:h-auto' : '',
           wide ? 'md:max-w-3xl' : 'md:max-w-lg',
           'w-full'
         )}
       >
         <div aria-hidden className="mx-auto mt-2.5 h-1.5 w-11 shrink-0 rounded-full bg-line md:hidden" />
-        <header className="flex items-start justify-between gap-3 px-5 pb-3 pt-3 md:pt-5">
-          <h2 id={titleId} className="min-w-0 text-lg font-semibold tracking-tight text-ink">
+        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3 md:py-3.5">
+          <h2 id={titleId} className="min-w-0 text-[15px] font-semibold tracking-tight text-ink">
             {title}
           </h2>
           <button
@@ -90,12 +90,12 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-raised text-ink hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-mute hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text md:h-8 md:w-8"
           >
-            <span aria-hidden className="text-lg leading-none">✕</span>
+            <span aria-hidden className="text-[15px] leading-none">✕</span>
           </button>
         </header>
-        <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6', full && 'pb-8')}>{children}</div>
+        <div className={cx('thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 pt-4', full && 'pb-8')}>{children}</div>
       </div>
     </div>
   );

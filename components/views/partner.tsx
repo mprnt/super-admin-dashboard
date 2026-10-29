@@ -1,14 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { call, messageOf, qs, seg } from '../../lib/client/api';
 import { useConsole, useResource } from '../../lib/client/console';
 import { actionLabel, count, dateTime, duration, money, percent, shortDate } from '../../lib/format';
 import type { AuditEntry, Comparison, Organization, PriceList, Range, Summary } from '../../lib/types';
+import { partnerReadiness } from '../../lib/readiness.ts';
 import { DataTable, PageHeader, useToast } from '../ui/data';
 import { ConfirmDialog, Modal } from '../ui/dialogs';
-import { Button, Field, Input, KV, LinkButton, Loading, Notice, Panel, Pill, Stat, Tabs, Textarea, cx } from '../ui/primitives';
+import { Button, Eyebrow, Field, Input, KV, LinkButton, Loading, Notice, Panel, Pill, Stat, Tabs, Textarea, cx } from '../ui/primitives';
+import { ReadinessChecklist, ReadinessMeter } from '../ui/insight';
 import { OrgPill, RawRecord } from './common';
 import { BillingPanel } from './billing';
 import { PartnerDocumentsPanel } from './onboarding';
@@ -40,7 +43,7 @@ export function PartnerFrame({ orgId, children }: { orgId: string; children: Rea
   if (!org) {
     return (
       <Notice tone="bad">
-        No partner has the id <span className="font-mono">{orgId}</span>. It may have been deleted.{' '}
+        No Model 1 partner has the id <span className="font-mono">{orgId}</span>. It may have been deleted, or it may be on another model.{' '}
         <LinkButton href="/partners" size="sm">
           Back to partners
         </LinkButton>
@@ -50,26 +53,109 @@ export function PartnerFrame({ orgId, children }: { orgId: string; children: Rea
 
   const active = SECTIONS.find((s) => (s.path === '' ? pathname === base : pathname.startsWith(base + s.path)));
 
+  const kiosks = ctx.kiosks.filter((k) => k.organizationId === orgId);
+  const printers = ctx.printers.filter((p) => p.organization?.id === orgId && !p.enrollment.revokedAt && p.status !== 'revoked');
+  const online = printers.filter((p) => (p.status === 'online' || p.status === 'busy') && !p.silent).length;
+  const staff = ctx.users.filter((u) => u.organizationId === orgId && !u.deletedAt);
+  const ownRate = ctx.priceLists.find((p) => p.organizationId === orgId && !p.kioskId) ?? null;
+  const readiness = partnerReadiness(org, { kiosks: ctx.kiosks, printers: ctx.printers, users: ctx.users, priceLists: ctx.priceLists });
+  const payoutReady = Boolean(org.payout.upiId || org.payout.bankAccountLast4);
+  const owner = staff
+    .filter((u) => u.role === 'owner')
+    .sort((a, b) => (b.lastLoginAt ?? '').localeCompare(a.lastLoginAt ?? ''))[0];
+  const initials = org.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('');
+
+  const counts: Record<string, number | null> = {
+    staff: staff.length,
+    'qr-points': kiosks.length,
+    printers: printers.length,
+  };
+
   return (
     <>
-      <PageHeader
-        crumbs={[{ label: 'Partners', href: '/partners' }, { label: org.name, href: base }]}
-        title={org.name}
-        meta={
-          <>
-            <OrgPill org={org} />
-            <span className="font-mono text-[12px]">{org.slug}</span>
-            <span className="font-mono text-[12px]" title={org.id}>
-              {org.id}
-            </span>
-          </>
-        }
-      />
-      <div className="mb-5">
-        <Tabs items={SECTIONS.map((s) => ({ href: base + s.path, label: s.label, active: s === active }))} />
-      </div>
+      <nav aria-label="Breadcrumb" className="mb-3 text-[12.5px] text-mute">
+        <Link href="/partners" className="font-medium hover:text-brand-text">
+          Partners
+        </Link>
+        <span aria-hidden className="mx-1.5 text-line-strong">›</span>
+        <span className="text-ink/80">{org.name}</span>
+      </nav>
+
+      <section className="mb-5 overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="flex flex-wrap items-start gap-4 p-4 md:p-5">
+          <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand text-[17px] font-bold text-brand-ink">
+            {initials || '·'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="min-w-0 break-words text-[21px] font-semibold leading-tight tracking-tight text-ink md:text-[24px]">{org.name}</h1>
+              <OrgPill org={org} />
+              <Pill tone="amber">Model 1 · Printer integration</Pill>
+            </div>
+            <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-mute">
+              <span className="font-mono">{org.slug}</span>
+              <span className="font-mono" title={org.id}>
+                {org.id.slice(0, 8)}…
+              </span>
+              <span>Joined {shortDate(org.createdAt, org.timezone)}</span>
+              <span>{org.contactEmail ?? 'No contact email'}</span>
+            </p>
+          </div>
+          <Link
+            href={`${base}`}
+            className="flex shrink-0 items-center gap-3 rounded-lg border border-line px-3 py-2 transition hover:border-line-strong"
+            title={readiness.missing.length ? `Missing: ${readiness.missing.map((m) => m.label).join(', ')}` : 'Everything in place'}
+          >
+            <Eyebrow>Readiness</Eyebrow>
+            <ReadinessMeter readiness={readiness} />
+          </Link>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-px border-t border-line bg-line sm:grid-cols-3 xl:grid-cols-6 [&>div]:bg-surface [&>div]:px-4 [&>div]:py-3 md:[&>div]:px-5">
+          <Fact label="QR points" value={`${kiosks.filter((k) => k.status === 'active').length} / ${kiosks.length}`} sub="active / total" />
+          <Fact label="Printers online" value={`${online} / ${printers.length}`} sub="online / enrolled" tone={printers.length > 0 && online === 0 ? 'bad' : undefined} />
+          <Fact label="Staff" value={count(staff.length)} sub={`${staff.filter((u) => u.role === 'owner').length} owner`} />
+          <Fact
+            label="Rates"
+            value={ownRate ? `${money(ownRate.bwPerPage)} · ${money(ownRate.colorPerPage)}` : 'Default'}
+            sub={ownRate ? 'B&W · colour, set by the shop' : 'On the MPRNT default'}
+            tone={ownRate ? undefined : 'warn'}
+          />
+          <Fact
+            label="Payout"
+            value={payoutReady ? (org.payout.upiId ? 'UPI' : 'Bank') + (org.payout.upiId && org.payout.bankAccountLast4 ? ' + bank' : '') : 'Missing'}
+            sub={org.payout.bankAccountLast4 ? `Account ending ${org.payout.bankAccountLast4}` : org.payout.upiId ?? 'No bank or UPI on file'}
+            tone={payoutReady ? undefined : 'bad'}
+          />
+          <Fact
+            label="Owner last in"
+            value={owner?.lastLoginAt ? shortDate(owner.lastLoginAt, org.timezone) : owner ? 'Never' : 'No owner'}
+            sub={owner?.email ?? 'No owner account'}
+            tone={!owner ? 'bad' : !owner.lastLoginAt ? 'warn' : undefined}
+          />
+        </dl>
+
+        <div className="border-t border-line px-2 md:px-3">
+          <Tabs items={SECTIONS.map((s) => ({ href: base + s.path, label: s.label, active: s === active, count: counts[s.key] ?? undefined }))} />
+        </div>
+      </section>
       {children}
     </>
+  );
+}
+
+function Fact({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'bad' | 'warn' }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{label}</dt>
+      <dd className={cx('tnum mt-1 text-[16px] font-semibold leading-snug', tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : 'text-ink')}>{value}</dd>
+      {sub && <dd className="mt-0.5 text-[11.5px] leading-snug text-mute">{sub}</dd>}
+    </div>
   );
 }
 
@@ -111,6 +197,7 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
   const online = printers.filter((p) => p.status === 'online' || p.status === 'busy').length;
   const revoked = printers.filter((p) => Boolean(p.enrollment.revokedAt) || p.status === 'revoked').length;
   const staff = ctx.users.filter((u) => u.organizationId === orgId && !u.deletedAt);
+  const readiness = partnerReadiness(record, { kiosks: ctx.kiosks, printers: ctx.printers, users: ctx.users, priceLists: ctx.priceLists });
 
   const refresh = () => {
     org.reload();
@@ -157,17 +244,15 @@ export function PartnerOverviewView({ orgId }: { orgId: string }) {
           />
         </Panel>
 
-        <Panel title="Fleet" hint="Live state, from the printers table">
-          <KV
-            columns={1}
-            items={[
-              { label: 'QR points', value: `${kiosks.length} (${kiosks.filter((k) => k.status === 'active').length} active)` },
-              { label: 'Printers', value: `${printers.length}` },
-              { label: 'Online or busy', value: `${online}` },
-              { label: 'Revoked', value: `${revoked}` },
-              { label: 'Staff accounts', value: `${staff.length} not removed` },
-            ]}
-          />
+        <Panel
+          title="Readiness"
+          hint={`${readiness.done} of ${readiness.total} in place. Each line opens where it is seen or fixed.`}
+          actions={<ReadinessMeter readiness={readiness} />}
+        >
+          <ReadinessChecklist readiness={readiness} base={`/partners/${orgId}`} />
+          <p className="mt-3 text-[12px] text-mute">
+            {printers.length} printer{printers.length === 1 ? '' : 's'} enrolled · {online} online or busy · {revoked} revoked · {staff.length} staff
+          </p>
         </Panel>
       </div>
 

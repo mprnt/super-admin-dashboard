@@ -37,6 +37,8 @@ export const PLATFORM_ROUTES: ReadonlyArray<readonly [Method, Template]> = [
   // route skipped the GST, address and owner checks, so the console no longer sends it.
   ['GET', 'organizations/:uuid'],
   ['PATCH', 'organizations/:uuid'],
+  // A partner's bank and UPI, set on its behalf when the shop has not.
+  ['PATCH', 'organizations/:uuid/payout'],
   ['DELETE', 'organizations/:uuid'],
   ['POST', 'organizations/:uuid/status'],
   ['POST', 'organizations/:uuid/kiosks'],
@@ -98,6 +100,7 @@ export const PLATFORM_ROUTES: ReadonlyArray<readonly [Method, Template]> = [
   ['POST', 'billing/plans'],
 
   // Partner onboarding: the wizard's drafts, its documents, and a partner's documents
+  ['GET', 'onboarding/drafts'],
   ['POST', 'onboarding/drafts'],
   ['GET', 'onboarding/drafts/:uuid'],
   ['PUT', 'onboarding/drafts/:uuid'],

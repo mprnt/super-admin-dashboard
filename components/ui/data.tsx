@@ -45,21 +45,21 @@ export function DataTable<T>({
   return (
     <>
       {/* Phone: each row is a card. The whole card is the tap target when it links or opens. */}
-      <ul className="space-y-3 md:hidden" aria-label={caption}>
+      <ul className="space-y-2 md:hidden" aria-label={caption}>
         {rows.map((row) => {
           const href = rowHref?.(row);
           const body = (
             <>
               {first && (
-                <div className="min-w-0 text-[15px] font-semibold text-ink">
+                <div className="min-w-0 text-[14px] font-semibold text-ink">
                   {first.cell(row)}
                 </div>
               )}
               {mobileRest.length > 0 && (
-                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
                   {mobileRest.map((c) => (
                     <div key={c.key} className={cx('min-w-0', mobileRest.length % 2 === 1 && c === mobileRest[mobileRest.length - 1] && 'col-span-2')}>
-                      <dt className="text-xs text-mute">{c.header}</dt>
+                      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{c.header}</dt>
                       <dd className={cx('mt-0.5 break-words text-ink', c.mono && 'font-mono text-[13px]')}>{c.cell(row) ?? '—'}</dd>
                     </div>
                   ))}
@@ -67,7 +67,7 @@ export function DataTable<T>({
               )}
             </>
           );
-          const cardClass = 'block rounded-2xl bg-raised/70 p-4 transition active:scale-[0.99] hover:bg-raised';
+          const cardClass = 'block rounded-lg border border-line bg-surface p-3.5 transition hover:border-line-strong hover:bg-raised/50';
           return (
             <li key={rowKey(row)}>
               {href ? (
@@ -79,7 +79,7 @@ export function DataTable<T>({
                   {body}
                 </button>
               ) : (
-                <div className="rounded-2xl bg-raised/70 p-4">{body}</div>
+                <div className="rounded-lg border border-line bg-surface p-3.5">{body}</div>
               )}
             </li>
           );
@@ -88,13 +88,18 @@ export function DataTable<T>({
 
       {/* Desktop: a dense table. Wide tables scroll inside their own box, never the page. */}
       <div className="hidden md:block">
-        <div className="-mx-2 overflow-x-auto px-2">
-          <table className="w-full min-w-max border-separate border-spacing-0 text-sm">
+        <div className="thin-scroll overflow-x-auto rounded-lg border border-line">
+          <table className="w-full min-w-max border-separate border-spacing-0 text-[13.5px]">
             <caption className="sr-only">{caption}</caption>
             <thead>
-              <tr className="text-left text-xs font-medium text-mute">
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-mute">
                 {columns.map((c) => (
-                  <th key={c.key} scope="col" className={cx('border-b border-line px-3 py-2.5 font-medium', c.align === 'right' && 'text-right')} style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
+                  <th
+                    key={c.key}
+                    scope="col"
+                    className={cx('sticky top-0 border-b border-line bg-raised px-3 py-2.5 font-semibold', c.align === 'right' && 'text-right')}
+                    style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+                  >
                     {c.header}
                   </th>
                 ))}
@@ -106,20 +111,20 @@ export function DataTable<T>({
                 return (
                   <tr
                     key={rowKey(row)}
-                    className={cx('group align-top transition-colors hover:bg-raised/70', onRowClick && 'cursor-pointer')}
+                    className={cx('group align-middle transition-colors hover:bg-brand-soft/40 [&:last-child>td]:border-b-0', onRowClick && 'cursor-pointer')}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {columns.map((c, i) => (
                       <td
                         key={c.key}
                         className={cx(
-                          'border-b border-line px-3 py-3 text-ink',
+                          'border-b border-line px-3 py-2.5 text-ink',
                           c.align === 'right' && 'text-right tabular-nums',
-                          c.mono && 'font-mono text-[13px]'
+                          c.mono && 'font-mono text-[12.5px]'
                         )}
                       >
                         {href && i === 0 ? (
-                          <Link href={href} className="font-medium underline-offset-4 hover:text-brand-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text">
+                          <Link href={href} className="font-semibold text-brand-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text">
                             {c.cell(row)}
                           </Link>
                         ) : (
@@ -154,16 +159,16 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <header className="mb-5 flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
         {crumbs && crumbs.length > 0 && (
-          <nav aria-label="Breadcrumb" className="mb-2 text-sm text-mute">
+          <nav aria-label="Breadcrumb" className="mb-1.5 text-[12.5px] text-mute">
             <ol className="flex flex-wrap items-center gap-1.5">
               {crumbs.map((c, i) => (
                 <li key={`${c.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
-                  {i > 0 && <span aria-hidden className="text-line">/</span>}
+                  {i > 0 && <span aria-hidden className="text-line-strong">›</span>}
                   {c.href ? (
-                    <Link href={c.href} className="inline-flex min-h-[40px] items-center truncate hover:text-ink md:min-h-0">
+                    <Link href={c.href} className="inline-flex min-h-[36px] items-center truncate font-medium hover:text-brand-text md:min-h-0">
                       {c.label}
                     </Link>
                   ) : (
@@ -174,10 +179,10 @@ export function PageHeader({
             </ol>
           </nav>
         )}
-        <h1 className="break-words text-[28px] font-semibold leading-tight tracking-tight text-ink md:text-3xl">{title}</h1>
-        {meta && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-mute">{meta}</div>}
+        <h1 className="break-words text-[22px] font-semibold leading-tight tracking-tight text-ink md:text-[26px]">{title}</h1>
+        {meta && <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-mute">{meta}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1 md:[&>*]:flex-none">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );
 }
@@ -210,16 +215,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[60] flex flex-col items-center gap-2 md:inset-x-auto md:bottom-6 md:right-6 md:items-end lg:bottom-6">
+      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+16px)] z-[60] flex flex-col items-center gap-2 md:inset-x-auto md:bottom-6 md:right-6 md:items-end">
         {items.map((t) => (
           <div
             key={t.id}
             role={t.tone === 'bad' ? 'alert' : 'status'}
             className={cx(
-              'pointer-events-auto w-full max-w-md rounded-2xl px-4 py-3 text-sm font-medium shadow-sheet md:w-auto',
-              t.tone === 'ok' && 'bg-brand text-brand-ink',
-              t.tone === 'bad' && 'bg-bad text-brand-ink',
-              t.tone === 'info' && 'bg-info text-brand-ink'
+              'pointer-events-auto w-full max-w-md rounded-lg border-l-[3px] bg-ink px-4 py-3 text-[13px] font-medium text-bg shadow-sheet md:w-auto',
+              t.tone === 'ok' && 'border-accent',
+              t.tone === 'bad' && 'border-bad',
+              t.tone === 'info' && 'border-info'
             )}
           >
             {t.message}
@@ -248,7 +253,7 @@ export function BarSeries({ points, height = 140 }: { points: { label: string; v
       <svg aria-hidden="true" viewBox={`0 0 ${width} ${height}`} className="h-[140px] w-full min-w-[240px]" preserveAspectRatio="none">
         {points.map((p, i) => {
           const h = Math.max(2, (p.value / max) * (height - 8));
-          return <rect key={`${p.label}-${i}`} x={i * 22 + 4} y={height - h} width={14} height={h} rx={5} className="fill-brand-text/80" />;
+          return <rect key={`${p.label}-${i}`} x={i * 22 + 4} y={height - h} width={14} height={h} rx={2} className="fill-brand-text/75" />;
         })}
       </svg>
     </div>

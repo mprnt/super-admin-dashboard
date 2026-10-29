@@ -11,11 +11,11 @@ import {
 } from 'react';
 import { call, messageOf } from './api';
 import { isModelOne } from '../models';
-import type { Kiosk, Organization, Printer, StaffUser } from '../types';
+import type { Kiosk, Organization, PriceList, Printer, StaffUser } from '../types';
 
 /**
  * The whole platform's shape, loaded once and refreshed after every change:
- * partners, QR points, printers and staff. The tree, the command palette and
+ * partners, QR points, printers, staff and every published rate. The tree, the command palette and
  * the list pages all read from here, so a change made on one page shows on
  * every other without a manual reload.
  *
@@ -28,6 +28,8 @@ export interface ConsoleData {
   kiosks: Kiosk[];
   printers: Printer[];
   users: StaffUser[];
+  /** Every rate published, newest first: each partner's own and the MPRNT default. */
+  priceLists: PriceList[];
   ready: boolean;
   error: string | null;
   reload: () => void;
@@ -41,9 +43,10 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     kiosks: Kiosk[];
     printers: Printer[];
     users: StaffUser[];
+    priceLists: PriceList[];
     ready: boolean;
     error: string | null;
-  }>({ organizations: [], kiosks: [], printers: [], users: [], ready: false, error: null });
+  }>({ organizations: [], kiosks: [], printers: [], users: [], priceLists: [], ready: false, error: null });
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -54,8 +57,9 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       call<{ kiosks: Kiosk[] }>('GET', 'kiosks'),
       call<{ printers: Printer[] }>('GET', 'printers'),
       call<{ users: StaffUser[] }>('GET', 'users'),
+      call<{ priceLists: PriceList[] }>('GET', 'pricing/lists'),
     ])
-      .then(([orgs, kiosks, printers, users]) => {
+      .then(([orgs, kiosks, printers, users, prices]) => {
         if (!live) return;
         // This console runs Model 1 only. Partners on another model, and everything that
         // belongs to them, are left out here: they are managed from their own dashboard.
@@ -66,6 +70,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
           kiosks: kiosks.kiosks.filter((k) => k.organizationId !== null && partnerIds.has(k.organizationId)),
           printers: printers.printers.filter((p) => p.organization !== null && partnerIds.has(p.organization.id)),
           users: users.users.filter((u) => u.organizationId === null || partnerIds.has(u.organizationId)),
+          priceLists: prices.priceLists.filter((p) => p.organizationId === null || partnerIds.has(p.organizationId)),
           ready: true,
           error: null,
         });

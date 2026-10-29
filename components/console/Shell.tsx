@@ -3,16 +3,16 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useConsole } from '../../lib/client/console';
+import { useConsole, useResource } from '../../lib/client/console';
 import { parseProfile } from '../../lib/profile.ts';
-import { buildSearchIndex, buildTree } from '../../lib/tree.ts';
+import { partnerReadiness, type Readiness } from '../../lib/readiness.ts';
+import { buildSearchIndex, nodeMatches, partnerTone, type TreeNode } from '../../lib/tree.ts';
 import type { SessionUser } from '../../lib/types';
 import { ThemeSwitch } from '../ui/theme';
-import { Button, ErrorState, cx } from '../ui/primitives';
-import { Modal } from '../ui/dialogs';
-import { Icons } from '../ui/icons';
+import { ErrorState, StatusDot, cx } from '../ui/primitives';
+import { Icons, type IconName } from '../ui/icons';
+import { RailBadge, ReadinessMeter } from '../ui/insight';
 import { MprntLogo } from '../MprntLogo';
-import { TreeNav } from './TreeNav';
 import { Palette } from './Palette';
 
 /** Sign out after this long without input. The backend session is revoked with it. */
@@ -24,52 +24,102 @@ function readProfile(): SessionUser | null {
   return parseProfile(pair ? pair.slice('mprnt_sa_profile='.length) : null);
 }
 
-/** The bottom tab bar on a phone: the four places used most, and More. */
-const TABS: { href: string; label: string; icon: () => ReactNode; match: (p: string) => boolean }[] = [
-  { href: '/', label: 'Home', icon: Icons.home, match: (p) => p === '/' },
-  { href: '/partners', label: 'Partners', icon: Icons.partners, match: (p) => p.startsWith('/partners') },
-  { href: '/printers', label: 'Printers', icon: Icons.printer, match: (p) => p.startsWith('/printers') },
-  { href: '/attention', label: 'Attention', icon: Icons.alert, match: (p) => p.startsWith('/attention') },
+type BadgeKey = 'partners' | 'drafts' | 'attention' | 'printersDown';
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: IconName;
+  badge?: BadgeKey;
+  /** Whether the item is the current page. Defaults to the path or anything under it. */
+  match?: (pathname: string) => boolean;
+}
+
+/** Every page that is not one partner's, grouped by what an operator is doing. */
+const NAV: { title: string; items: NavItem[] }[] = [
+  {
+    title: 'Platform',
+    items: [
+      { href: '/', label: 'Overview', icon: 'home', match: (p) => p === '/' },
+      { href: '/partners', label: 'Partners', icon: 'partners', badge: 'partners', match: (p) => p === '/partners' },
+      { href: '/partners/new', label: 'Onboard a partner', icon: 'onboarding', badge: 'drafts' },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { href: '/attention', label: 'Attention', icon: 'alert', badge: 'attention' },
+      { href: '/printers', label: 'Printers', icon: 'printer', badge: 'printersDown' },
+      { href: '/queue', label: 'Print queue', icon: 'queue' },
+      { href: '/sessions', label: 'Sessions', icon: 'sessions' },
+    ],
+  },
+  {
+    title: 'Money',
+    items: [
+      { href: '/billing', label: 'Billing', icon: 'billing' },
+      { href: '/pricing', label: 'Pricing', icon: 'pricing' },
+      { href: '/reports', label: 'Partner comparison', icon: 'reports' },
+    ],
+  },
+  {
+    title: 'Growth and control',
+    items: [
+      { href: '/leads', label: 'Leads', icon: 'leads' },
+      { href: '/staff', label: 'Staff and accounts', icon: 'staff' },
+      { href: '/permissions', label: 'Permissions', icon: 'permissions' },
+      { href: '/audit', label: 'Audit trail', icon: 'audit' },
+    ],
+  },
 ];
 
-/** Everything that is not a partner and not in the tab bar. */
-const MORE_LINKS: { href: string; label: string; hint: string }[] = [
-  { href: '/staff', label: 'Staff and platform accounts', hint: 'Every person with access' },
-  { href: '/sessions', label: 'Sessions', hint: 'Every job, filterable and exportable' },
-  { href: '/pricing', label: 'Pricing', hint: 'Rates in force and their history' },
-  { href: '/reports', label: 'Partner comparison', hint: 'Every partner side by side' },
-  { href: '/billing', label: 'Billing', hint: 'Hardware sales, subscriptions and prices' },
-  { href: '/queue', label: 'Print queue', hint: 'Jobs routed in the last 24 hours' },
-  { href: '/leads', label: 'Leads', hint: 'Enquiries from the website' },
-  { href: '/audit', label: 'Audit trail', hint: 'Every administrative action' },
-  { href: '/permissions', label: 'Permissions', hint: 'What each role may do' },
-  { href: '/account', label: 'My account', hint: 'Change your password' },
-];
+const isOn = (item: NavItem, pathname: string) =>
+  item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
 export function ConsoleShell({ children }: { children: ReactNode }) {
   const data = useConsole();
   const pathname = usePathname();
   const router = useRouter();
 
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [explorerOpen, setExplorerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<SessionUser | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => setProfile(readProfile()), []);
 
-  const { organizations, kiosks, printers, users } = data;
-  const sections = useMemo(() => buildTree({ organizations, kiosks, printers, users }), [organizations, kiosks, printers, users]);
-  const index = useMemo(() => buildSearchIndex({ organizations, kiosks, printers, users }), [organizations, kiosks, printers, users]);
+  const attention = useResource<{ count: number }>('attention');
+  const drafts = useResource<{ count: number }>('onboarding/drafts');
 
-  // Every sheet and menu closes when the page changes.
-  useEffect(() => {
-    setMoreOpen(false);
-    setExplorerOpen(false);
-    setMenuOpen(false);
-  }, [pathname]);
+  const { organizations, kiosks, printers, users, priceLists } = data;
+  const index = useMemo(() => buildSearchIndex({ organizations, kiosks, printers, users }), [organizations, kiosks, printers, users]);
+  const readiness = useMemo(() => {
+    const map = new Map<string, Readiness>();
+    for (const org of organizations) map.set(org.id, partnerReadiness(org, { kiosks, printers, users, priceLists }));
+    return map;
+  }, [organizations, kiosks, printers, users, priceLists]);
+
+  const partnerNodes: TreeNode[] = useMemo(
+    () =>
+      [...organizations]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((org) => ({ id: org.id, label: org.name, href: `/partners/${org.id}`, tone: partnerTone(org), kind: 'Partner' })),
+    [organizations]
+  );
+
+  const printersDown = printers.filter(
+    (p) => !p.enrollment.revokedAt && p.status !== 'revoked' && (p.silent || (p.status !== 'online' && p.status !== 'busy'))
+  ).length;
+
+  const badges: Record<BadgeKey, { value: number | null; alert?: boolean }> = {
+    partners: { value: data.ready ? organizations.length : null },
+    drafts: { value: drafts.data?.count ?? null },
+    attention: { value: attention.data?.count ?? null, alert: true },
+    printersDown: { value: data.ready ? printersDown : null, alert: true },
+  };
+
+  // The drawer closes when the page changes.
+  useEffect(() => setDrawerOpen(false), [pathname]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,87 +147,101 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
     await signOut();
   };
 
-  const initial = (profile?.email ?? '?').charAt(0).toUpperCase();
+  const reloadAll = () => {
+    data.reload();
+    attention.reload();
+    drafts.reload();
+  };
+
+  const rail = (
+    <Rail
+      pathname={pathname}
+      badges={badges}
+      partners={partnerNodes}
+      readiness={readiness}
+      profile={profile}
+      signingOut={signingOut}
+      onSignOut={() => void onSignOut()}
+      onFind={() => {
+        setDrawerOpen(false);
+        setPaletteOpen(true);
+      }}
+    />
+  );
 
   return (
     <div className="min-h-[100dvh]">
-      <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-md">
-        <div className="flex h-16 items-center gap-3 px-4 md:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3 rounded-2xl pr-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-text">
-            <MprntLogo variant="mark" className="h-9 w-auto shrink-0 text-brand-text" aria-hidden />
-            <span className="min-w-0 leading-tight">
-              <MprntLogo variant="wordmark" title="MPRNT" className="block h-4 w-auto text-brand-text" />
-              <span className="block truncate text-xs text-mute">Platform console</span>
-            </span>
-          </Link>
+      {/* Desk: the rail is fixed beside the page. */}
+      <aside aria-label="Navigation" className="fixed inset-y-0 left-0 z-30 hidden w-[264px] lg:block">
+        {rail}
+      </aside>
 
-          <div className="ml-auto flex items-center gap-2">
-            {/* Wide search on a desk; an icon on a phone. Both open the same ⌘K finder. */}
+      {/* Phone and tablet: the same rail, as a drawer. */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-[rgb(1_30_20/0.5)]" onClick={() => setDrawerOpen(false)} />
+          <aside aria-label="Navigation" className="absolute inset-y-0 left-0 w-[min(86vw,300px)] shadow-sheet">
+            {rail}
+          </aside>
+        </div>
+      )}
+
+      <div className="lg:pl-[264px]">
+        <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur-md">
+          <div className="flex h-14 items-center gap-2 px-3 md:px-6">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open navigation"
+              className="grid h-10 w-10 place-items-center rounded-lg text-ink hover:bg-raised lg:hidden"
+            >
+              <Icons.menu />
+            </button>
+            <Link href="/" className="flex items-center gap-2 lg:hidden" aria-label="MPRNT overview">
+              <MprntLogo variant="mark" className="h-6 w-auto text-brand-text" aria-hidden />
+              <MprntLogo variant="wordmark" title="MPRNT" className="h-3 w-auto text-brand-text" />
+            </Link>
+
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              aria-label="Find a partner, printer or person"
-              className="flex h-11 items-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-mute transition hover:border-mute lg:w-[340px] lg:px-4"
+              aria-label="Find a partner, QR point, printer or person"
+              className="ml-auto flex h-10 items-center gap-2.5 rounded-lg border border-line bg-bg px-3 text-[13px] text-mute transition hover:border-line-strong md:ml-0 md:w-[min(420px,40vw)]"
             >
-              <Icons.search />
-              <span className="hidden min-w-0 flex-1 truncate text-left lg:block">Find a partner, printer or person</span>
-              <kbd className="hidden shrink-0 rounded-md border border-line px-1.5 font-mono text-[11px] lg:block">⌘K</kbd>
+              <Icons.search className="h-4 w-4" />
+              <span className="hidden min-w-0 flex-1 truncate text-left md:block">Find a partner, QR point, printer or person</span>
+              <kbd className="hidden shrink-0 rounded border border-line-strong bg-surface px-1.5 font-mono text-[10.5px] text-mute md:block">⌘K</kbd>
             </button>
 
-            <span className="hidden items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-text xl:inline-flex">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand-text" />
-              Live · every change is recorded
-            </span>
-
-            <div className="hidden lg:block">
-              <ThemeSwitch />
-            </div>
-
-            <div className="relative">
+            <div className="flex items-center gap-2 md:ml-auto">
+              <span className="hidden items-center gap-2 rounded-md border border-line px-2.5 py-1 text-[12px] font-medium text-mute xl:inline-flex">
+                <span aria-hidden className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok/60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-ok" />
+                </span>
+                Live · every change is audited
+              </span>
               <button
                 type="button"
-                onClick={() => setMenuOpen((o) => !o)}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                aria-label={`Account for ${profile?.email ?? 'this operator'}`}
-                className="grid h-11 w-11 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand-text transition hover:brightness-95"
+                onClick={reloadAll}
+                aria-label="Reload all data"
+                title="Reload all data"
+                className="grid h-10 w-10 place-items-center rounded-lg text-mute hover:bg-raised hover:text-ink"
               >
-                {initial}
+                <Icons.refresh className="h-[18px] w-[18px]" />
               </button>
-              {menuOpen && (
-                <>
-                  <button type="button" aria-label="Close menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenuOpen(false)} />
-                  <div role="menu" className="absolute right-0 z-50 mt-2 w-[min(88vw,300px)] overflow-hidden rounded-3xl border border-line bg-surface shadow-sheet">
-                    <div className="border-b border-line px-4 py-3">
-                      <p className="truncate text-sm font-medium text-ink">{profile?.email ?? 'Signed in'}</p>
-                      <p className="text-xs capitalize text-mute">{profile?.role?.replace('_', ' ') ?? 'Platform'}</p>
-                    </div>
-                    <div className="p-2">
-                      <Link role="menuitem" href="/account" className="flex min-h-[44px] items-center rounded-2xl px-3 text-sm text-ink hover:bg-raised">
-                        My account and password
-                      </Link>
-                      <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void data.reload(); }} className="flex min-h-[44px] w-full items-center rounded-2xl px-3 text-left text-sm text-ink hover:bg-raised">
-                        Reload all data
-                      </button>
-                      <button type="button" role="menuitem" onClick={() => void onSignOut()} disabled={signingOut} className="flex min-h-[44px] w-full items-center rounded-2xl px-3 text-left text-sm font-medium text-bad hover:bg-bad/10 disabled:opacity-50">
-                        {signingOut ? 'Signing out…' : 'Sign out'}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+              <Link
+                href="/partners/new"
+                className="hidden h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-semibold text-brand-ink transition hover:brightness-110 md:inline-flex"
+              >
+                <Icons.plus className="h-4 w-4" />
+                New partner
+              </Link>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="lg:flex">
-        {/* Desktop: the navigator is a sidebar beside the page. On a phone it is a sheet. */}
-        <aside aria-label="Navigator" className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 border-r border-line bg-surface lg:block">
-          <TreeNav sections={sections} pathname={pathname} />
-        </aside>
-
-        <main id="main" className="min-w-0 flex-1 px-4 pb-32 pt-6 md:px-8 lg:pb-16">
+        <main id="main" className="mx-auto w-full max-w-[1560px] px-4 pb-16 pt-5 md:px-8 md:pt-7">
           {data.error && (
             <div className="mb-5">
               <ErrorState error={`Could not load the platform data: ${data.error}`} onRetry={data.reload} />
@@ -187,93 +251,174 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      {/* Phone: the four places used most, with More for everything else. */}
-      <nav aria-label="Main" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden">
-        <ul className="mx-auto grid max-w-md grid-cols-5">
-          {TABS.map((tab) => {
-            const active = tab.match(pathname);
-            const Icon = tab.icon;
-            return (
-              <li key={tab.href}>
-                <Link
-                  href={tab.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cx('flex min-h-[64px] flex-col items-center justify-center gap-1 text-[11px] font-medium', active ? 'text-brand-text' : 'text-mute')}
-                >
-                  <span className={cx('grid h-8 w-14 place-items-center rounded-full transition', active && 'bg-brand-soft')}>
-                    <Icon />
-                  </span>
-                  {tab.label}
-                </Link>
-              </li>
-            );
-          })}
-          <li>
-            <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" className="flex min-h-[64px] w-full flex-col items-center justify-center gap-1 text-[11px] font-medium text-mute">
-              <span className="grid h-8 w-14 place-items-center rounded-full">
-                <Icons.more />
-              </span>
-              More
-            </button>
-          </li>
-        </ul>
-      </nav>
+      <Palette open={paletteOpen} onClose={() => setPaletteOpen(false)} index={index} onPick={(href) => router.push(href)} />
+    </div>
+  );
+}
 
-      <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="More" focusField={false}>
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => { setMoreOpen(false); setExplorerOpen(true); }} className="w-full">
-              Navigator
-            </Button>
-            <Button onClick={() => { setMoreOpen(false); setPaletteOpen(true); }} className="w-full">
-              Find
-            </Button>
-          </div>
+// ---------------------------------------------------------------------------
+// The navigation rail
+// ---------------------------------------------------------------------------
 
-          <div>
-            <h3 className="mb-2 px-1 text-xs font-medium text-mute">Across every partner</h3>
-            <ul className="overflow-hidden rounded-3xl bg-raised/70">
-              {MORE_LINKS.map((link, i) => (
-                <li key={link.href} className={cx(i > 0 && 'border-t border-line')}>
-                  <Link href={link.href} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 hover:bg-raised">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-medium text-ink">{link.label}</span>
-                      <span className="block truncate text-xs text-mute">{link.hint}</span>
-                    </span>
-                    <span className="text-mute">
-                      <Icons.chevron />
-                    </span>
-                  </Link>
-                </li>
-              ))}
+function Rail({
+  pathname,
+  badges,
+  partners,
+  readiness,
+  profile,
+  signingOut,
+  onSignOut,
+  onFind,
+}: {
+  pathname: string;
+  badges: Record<BadgeKey, { value: number | null; alert?: boolean }>;
+  partners: TreeNode[];
+  readiness: Map<string, Readiness>;
+  profile: SessionUser | null;
+  signingOut: boolean;
+  onSignOut: () => void;
+  onFind: () => void;
+}) {
+  const [filter, setFilter] = useState('');
+  const [partnersOpen, setPartnersOpen] = useState(true);
+  const shown = filter.trim() ? partners.filter((n) => nodeMatches(n, filter)) : partners;
+  const initial = (profile?.email ?? '?').charAt(0).toUpperCase();
+
+  return (
+    <div className="flex h-full flex-col bg-side text-side-ink">
+      <Link href="/" className="flex items-center gap-3 px-5 pb-4 pt-5" aria-label="MPRNT overview">
+        <MprntLogo variant="mark" className="h-8 w-auto shrink-0 text-side-ink" aria-hidden />
+        <span className="min-w-0">
+          <MprntLogo variant="wordmark" title="MPRNT" className="block h-[13px] w-auto text-side-ink" />
+          <span className="mt-1 block text-[10.5px] font-semibold uppercase tracking-[0.16em] text-side-mute">Platform console</span>
+        </span>
+      </Link>
+
+      <div className="px-3 pb-3">
+        <button
+          type="button"
+          onClick={onFind}
+          className="flex h-9 w-full items-center gap-2 rounded-lg bg-white/[0.07] px-3 text-[13px] text-side-mute transition hover:bg-white/[0.11] hover:text-side-ink"
+        >
+          <Icons.search className="h-4 w-4" />
+          <span className="flex-1 text-left">Find anything</span>
+          <kbd className="rounded bg-white/10 px-1.5 font-mono text-[10.5px]">⌘K</kbd>
+        </button>
+      </div>
+
+      <nav className="rail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
+        {NAV.map((group) => (
+          <div key={group.title} className="mb-4">
+            <p className="px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-side-mute/80">{group.title}</p>
+            <ul className="space-y-px">
+              {group.items.map((item) => {
+                const on = isOn(item, pathname);
+                const Icon = Icons[item.icon];
+                const badge = item.badge ? badges[item.badge] : null;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={on ? 'page' : undefined}
+                      className={cx(
+                        'relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] transition',
+                        on ? 'bg-white/[0.12] font-semibold text-side-ink' : 'text-side-ink/80 hover:bg-white/[0.06] hover:text-side-ink'
+                      )}
+                    >
+                      {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-accent" />}
+                      <span className={on ? 'text-accent' : 'text-side-mute'}>
+                        <Icon className="h-[18px] w-[18px]" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {badge && <RailBadge value={badge.value} alert={badge.alert} />}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
+        ))}
 
-          <div>
-            <h3 className="mb-2 px-1 text-xs font-medium text-mute">Appearance</h3>
-            <ThemeSwitch className="w-full [&>*]:flex-1" />
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Button onClick={() => { setMoreOpen(false); void data.reload(); }} className="w-full">
-              Reload data
-            </Button>
-            <Button variant="danger" onClick={() => void onSignOut()} disabled={signingOut} className="w-full">
-              <Icons.logout />
-              {signingOut ? 'Signing out…' : 'Sign out'}
-            </Button>
-          </div>
-          {profile && <p className="text-center text-xs text-mute">Signed in as {profile.email}</p>}
+        <div className="mb-2">
+          <button
+            type="button"
+            onClick={() => setPartnersOpen((o) => !o)}
+            aria-expanded={partnersOpen}
+            className="flex w-full items-center gap-1.5 px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-side-mute/80 hover:text-side-ink"
+          >
+            <span className={cx('transition', partnersOpen ? 'rotate-0' : '-rotate-90')}>
+              <Icons.chevronDown className="h-3.5 w-3.5" />
+            </span>
+            Partners
+            <span className="tnum ml-auto font-bold normal-case tracking-normal">{partners.length}</span>
+          </button>
+          {partnersOpen && (
+            <>
+              <label className="relative mb-1.5 block">
+                <span className="sr-only">Filter partners</span>
+                <input
+                  type="search"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter partners"
+                  className="h-8 w-full rounded-md border border-white/10 bg-white/[0.05] px-2.5 text-[12.5px] text-side-ink placeholder:text-side-mute/70 focus:border-accent/60 focus:outline-none"
+                />
+              </label>
+              <ul className="space-y-px">
+                {shown.map((node) => {
+                  const on = pathname === node.href || pathname.startsWith(`${node.href}/`);
+                  const r = readiness.get(node.id);
+                  return (
+                    <li key={node.id}>
+                      <Link
+                        href={node.href}
+                        aria-current={on ? 'page' : undefined}
+                        className={cx(
+                          'relative flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] transition',
+                          on ? 'bg-white/[0.12] font-semibold text-side-ink' : 'text-side-ink/75 hover:bg-white/[0.06] hover:text-side-ink'
+                        )}
+                      >
+                        {on && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-accent" />}
+                        <StatusDot tone={node.tone} />
+                        <span className="min-w-0 flex-1 truncate">{node.label}</span>
+                        {r && <ReadinessMeter readiness={r} onRail />}
+                      </Link>
+                    </li>
+                  );
+                })}
+                {shown.length === 0 && <li className="px-2.5 py-2 text-[12px] text-side-mute">No partner matches “{filter}”.</li>}
+              </ul>
+            </>
+          )}
         </div>
-      </Modal>
+      </nav>
 
-      <Modal open={explorerOpen} onClose={() => setExplorerOpen(false)} title="Navigator" full focusField={false}>
-        <div className="-mx-5 -mb-8 flex h-[calc(92dvh-120px)] min-h-[360px] flex-col">
-          <TreeNav sections={sections} pathname={pathname} onNavigate={() => setExplorerOpen(false)} />
+      <div className="border-t border-white/10 p-3">
+        <ThemeSwitch onRail className="mb-3 flex w-full" />
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/account"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1.5 transition hover:bg-white/[0.06]"
+            title="My account and password"
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-[13px] font-bold text-side">{initial}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-[12.5px] font-semibold text-side-ink">{profile?.email ?? 'Signed in'}</span>
+              <span className="block text-[11px] capitalize text-side-mute">{profile?.role?.replace('_', ' ') ?? 'Platform'}</span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            onClick={onSignOut}
+            disabled={signingOut}
+            aria-label="Sign out"
+            title="Sign out"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-side-mute transition hover:bg-white/[0.08] hover:text-side-ink disabled:opacity-50"
+          >
+            <Icons.logout className="h-[18px] w-[18px]" />
+          </button>
         </div>
-      </Modal>
-
-      <Palette open={paletteOpen} onClose={() => setPaletteOpen(false)} index={index} onPick={(href) => router.push(href)} />
+      </div>
     </div>
   );
 }

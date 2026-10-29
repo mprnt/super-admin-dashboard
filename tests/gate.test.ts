@@ -28,6 +28,8 @@ test('the route allowlist admits what the console calls', () => {
     ['GET', ['organizations']],
     ['GET', ['organizations', ORG]],
     ['PATCH', ['organizations', ORG]],
+    ['PATCH', ['organizations', ORG, 'payout']],
+    ['GET', ['onboarding', 'drafts']],
     ['DELETE', ['organizations', ORG]],
     ['POST', ['organizations', ORG, 'status']],
     ['POST', ['organizations', ORG, 'kiosks']],

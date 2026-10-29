@@ -521,3 +521,18 @@ export interface OnboardingResult {
   documents: number;
   nextSteps: string[];
 }
+
+/** A partner still being onboarded: one open draft of the wizard. Never carries payout details. */
+export interface DraftSummary {
+  id: string;
+  tradingName: string | null;
+  city: string | null;
+  ownerEmail: string | null;
+  qrCode: string | null;
+  steps: { business: boolean; qrPoint: boolean; owner: boolean; payout: boolean };
+  documents: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}

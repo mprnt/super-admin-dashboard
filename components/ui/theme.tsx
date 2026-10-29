@@ -57,10 +57,14 @@ export function useTheme(): ThemeValue {
 }
 
 /** A three-way switch: System, Light, Dark. Each option is a full-size tap target. */
-export function ThemeSwitch({ className }: { className?: string }) {
+export function ThemeSwitch({ className, onRail = false }: { className?: string; onRail?: boolean }) {
   const { choice, setChoice } = useTheme();
   return (
-    <div role="radiogroup" aria-label="Theme" className={cx('inline-flex rounded-full border border-line bg-surface p-1', className)}>
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className={cx('inline-flex rounded-lg p-0.5', onRail ? 'bg-white/[0.07]' : 'border border-line bg-raised', className)}
+    >
       {THEME_CHOICES.map((option) => {
         const on = option.value === choice;
         return (
@@ -71,8 +75,14 @@ export function ThemeSwitch({ className }: { className?: string }) {
             aria-checked={on}
             onClick={() => setChoice(option.value)}
             className={cx(
-              'min-h-[40px] rounded-full px-4 text-sm font-medium transition',
-              on ? 'bg-brand text-brand-ink shadow-sm' : 'text-mute hover:text-ink'
+              'min-h-[36px] flex-1 rounded-md px-3 text-[12.5px] font-semibold transition md:min-h-[30px]',
+              onRail
+                ? on
+                  ? 'bg-white/[0.14] text-side-ink'
+                  : 'text-side-mute hover:text-side-ink'
+                : on
+                  ? 'bg-surface text-ink shadow-sm'
+                  : 'text-mute hover:text-ink'
             )}
           >
             {option.label}

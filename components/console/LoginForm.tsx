@@ -53,8 +53,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
-      <h2 className="text-xl font-semibold tracking-tight text-ink">Sign in</h2>
+    <form onSubmit={submit} className="space-y-4" noValidate>
 
       {notice && <Notice tone="info">{notice}</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}

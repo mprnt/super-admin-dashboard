@@ -67,10 +67,10 @@ export function Palette({ open, onClose, index, onPick }: { open: boolean; onClo
           placeholder="A partner, QR point code, printer ID or email"
           autoComplete="off"
           spellCheck={false}
-          className="h-12 w-full rounded-full border border-line bg-bg px-5 text-ink placeholder:text-mute/80 focus:border-brand-text focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-text/40"
+          className="h-11 w-full rounded-lg border border-line-strong bg-bg px-4 text-ink placeholder:text-mute/80 focus:border-brand-text focus:outline-none focus:ring-2 focus:ring-brand-text/20"
         />
 
-        <ul id={listId} role="listbox" aria-label="Results" className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+        <ul id={listId} role="listbox" aria-label="Results" className="thin-scroll min-h-0 flex-1 space-y-0.5 overflow-y-auto">
           {results.length === 0 && <li className="px-3 py-8 text-center text-sm text-mute">Nothing matches “{query}”.</li>}
           {results.map((node, i) => {
             const on = i === active;
@@ -82,14 +82,22 @@ export function Palette({ open, onClose, index, onPick }: { open: boolean; onClo
                 aria-selected={on}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => pick(node)}
-                className={cx('flex min-h-[52px] cursor-pointer items-center gap-3 rounded-2xl px-4 py-2 text-[15px]', on ? 'bg-brand text-brand-ink' : 'text-ink hover:bg-raised')}
+                className={cx(
+                  'relative flex min-h-[46px] cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5 text-[14px]',
+                  on ? 'bg-brand-soft text-ink' : 'text-ink hover:bg-raised'
+                )}
               >
-                {node.tone ? <StatusDot tone={on ? 'muted' : node.tone} /> : <span className="w-2.5" aria-hidden />}
+                {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-brand-text" />}
+                {node.tone ? <StatusDot tone={node.tone} /> : <span className="w-2" aria-hidden />}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{node.label}</span>
-                  {node.meta && <span className={cx('block truncate text-xs', on ? 'text-brand-ink/80' : 'text-mute')}>{node.meta}</span>}
+                  {node.meta && <span className="block truncate text-[12px] text-mute">{node.meta}</span>}
                 </span>
-                {node.kind && <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium', on ? 'bg-white/15' : 'bg-raised text-mute')}>{node.kind}</span>}
+                {node.kind && (
+                  <span className="shrink-0 rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-mute">
+                    {node.kind}
+                  </span>
+                )}
               </li>
             );
           })}
